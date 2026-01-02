@@ -1,8 +1,9 @@
 #!/bin/bash
 
-# 1. 시스템 업데이트 및 필수 패키지 설치
+# 1. 필수 패키지 및 yq(YAML 파서) 설치
 sudo apt-get update && sudo apt-get upgrade -y
-sudo apt-get install -y curl build-essential libaio1 ufw
+sudo apt-get install -y curl build-essential libaio1 ufw jq
+sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq
 
 # 2. Node.js (LTS v20) 설치
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
@@ -17,39 +18,39 @@ if [ ! -f /swapfile ]; then
     echo '/swapfile swap swap defaults 0 0' | sudo tee -a /etc/fstab
 fi
 
-# 4. 방화벽 계층화 설정 (iptables 기반 구축 후 ufw 제어)
-
-# 4-1. iptables 초기화 및 기본 DROP 정책 (가장 바깥쪽 방어선)
+# 4. 방화벽 계층화 설정 (iptables 기본 차단 후 UFW 관리)
 sudo iptables -F
 sudo iptables -X
 sudo iptables -P INPUT DROP
 sudo iptables -P FORWARD DROP
 sudo iptables -P OUTPUT ACCEPT
-
-# 4-2. 루프백 및 이미 연결된 세션(ESTABLISHED)은 iptables 수준에서 즉시 허용
-# (이게 없으면 ufw 설정 중에 SSH 접속이 끊길 수 있음)
 sudo iptables -A INPUT -i lo -j ACCEPT
 sudo iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 
-# 4-3. UFW 정책 설정 (실질적인 관리 레이어)
-# 기본 정책 설정
+# UFW 정책 적용
 sudo ufw default deny incoming
 sudo ufw default allow outgoing
-
-# 필수 서비스 포트 허용
-sudo ufw allow 22/tcp    # SSH
-sudo ufw allow 80/tcp    # HTTP
-sudo ufw allow 443/tcp   # HTTPS
-sudo ufw allow 3000/tcp  # Node.js App 포트
-
-# 4-4. UFW 활성화 (iptables 상단에 ufw 체인이 자동으로 주입됨)
+sudo ufw allow 22/tcp
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw allow $(yq '.PORT' config.yaml)/tcp
 sudo ufw --force enable
 
-# 5. PM2 및 환경 설정
+# 5. 프로젝트 초기화 및 .env 생성
+npm install
+cat <<EOF > .env
+PORT=$(yq '.PORT' config.yaml)
+DB_USER=$(yq '.DB_USER' config.yaml)
+DB_PASSWORD=$(yq '.DB_PASSWORD' config.yaml)
+DB_CONNECTION_STRING='$(yq '.DB_CONNECTION_STRING' config.yaml)'
+KAKAO_DEVICE_UUID=$(yq '.KAKAO_DEVICE_UUID' config.yaml)
+KAKAO_ACCESS_TOKEN=$(yq '.KAKAO_ACCESS_TOKEN' config.yaml)
+EOF
+
+# 6. PM2 설치
 sudo npm install -g pm2
 
 echo "------------------------------------------------"
-echo "Setup Complete!"
-echo "Firewall: iptables (Default DROP) + UFW (Active)"
-echo "Node.js: $(node -v)"
+echo "Setup Complete! .env file generated from config.yaml"
+echo "Firewall: iptables(DROP) + UFW(Active)"
 echo "------------------------------------------------"
