@@ -1,98 +1,76 @@
 const net = require('net');
+const EventEmitter = require('events');
 const LocoPacket = require('./packet');
+const locoCrypto = require('./crypto');
 
-class LocoClient {
+class LocoClient extends EventEmitter {
   constructor() {
+    super();
     this.socket = new net.Socket();
     this.packetId = 0;
     this.isConnected = false;
+    this.buffer = Buffer.alloc(0); // 쪼개져서 오는 패킷을 모으기 위한 버퍼
   }
 
-  /**
-   * 카카오 Loco 서버에 연결을 시도합니다.
-   * @param {string} host - 서버 주소
-   * @param {number} port - 포트 번호
-   */
   connect(host, port) {
     return new Promise((resolve, reject) => {
       this.socket.connect(port, host, () => {
         this.isConnected = true;
-        console.log(`[LocoClient] Connected to ${host}:${port}`);
+        console.log(`[Loco] Connected to ${host}:${port}`);
         resolve();
       });
 
-      this.socket.on('data', (data) => {
-        this.onData(data);
-      });
-
+      this.socket.on('data', (data) => this.onData(data));
       this.socket.on('error', (err) => {
-        console.error('[LocoClient] Socket Error:', err);
+        console.error('[Loco] Socket Error:', err);
         this.isConnected = false;
         reject(err);
       });
-
       this.socket.on('close', () => {
-        console.log('[LocoClient] Connection Closed');
+        console.log('[Loco] Connection closed');
         this.isConnected = false;
       });
     });
   }
 
-  /**
-   * 서버로 명령(Method)을 전송합니다.
-   * @param {string} method - Loco 메소드 (예: 'LOGINLIST', 'WRITE')
-   * @param {object} body - 전송할 BSON 데이터
-   */
   send(method, body) {
-    if (!this.isConnected) {
-      console.error('[LocoClient] Not connected to server');
-      return;
-    }
-
-    const packet = LocoPacket.create(this.packetId++, method, body);
+    if (!this.isConnected) return;
+    // 1. 바디 암호화 (AES)
+    const encryptedBody = locoCrypto.encrypt(body);
+    // 2. 패킷 생성 (22바이트 헤더 포함)
+    const packet = LocoPacket.create(this.packetId++, method, encryptedBody);
+    // 3. 전송
     this.socket.write(packet);
-    console.log(`[LocoClient] Sent: ${method} (ID: ${this.packetId - 1})`);
+    console.log(`[Loco] Sent Method: ${method}`);
   }
 
-  /**
-   * 서버로부터 데이터를 수신했을 때 호출됩니다.
-   * @param {Buffer} data - 수신된 바이너리 데이터
-   */
   onData(data) {
-    // 주의: 데이터가 한 번에 오지 않거나 여러 패킷이 섞여 올 수 있으므로 
-    // 실제 구현 시에는 버퍼링 로직이 필요합니다.
-    const parsed = LocoPacket.parse(data);
-    if (parsed) {
-      console.log(`[LocoClient] Received: ${parsed.header.method}`, parsed.body);
-      this.handlePacket(parsed);
-    }
-  }
-
-  /**
-   * 수신된 패킷의 종류에 따라 로직을 분기합니다.
-   */
-  handlePacket(packet) {
-    const { method } = packet.header;
+    // 수신된 데이터를 기존 버퍼에 추가
+    this.buffer = Buffer.concat([this.buffer, data]);
     
-    switch (method) {
-      case 'MSG':
-        console.log('[LocoClient] New Message received:', packet.body.chatMsg.msg);
-        // 여기서 EventEmitter나 Callback을 통해 외부(server.js)로 알림을 보낼 수 있습니다.
-        break;
-      case 'PING':
-        // 서버의 생존 확인 응답에 대한 처리
-        break;
-      default:
-        // 기타 응답 처리
-    }
-  }
+    // 헤더(22바이트)를 읽을 수 있을 만큼 쌓였는지 확인
+    while (this.buffer.length >= 22) {
+      const bodyLength = this.buffer.readUInt32LE(18);
+      
+      // 전체 패킷(헤더+바디)이 다 왔는지 확인
+      if (this.buffer.length < 22 + bodyLength) break;
 
-  /**
-   * 연결을 종료합니다.
-   */
-  destroy() {
-    this.socket.destroy();
-    this.isConnected = false;
+      // 한 개의 완전한 패킷 추출
+      const packetBuffer = this.buffer.slice(0, 22 + bodyLength);
+      this.buffer = this.buffer.slice(22 + bodyLength);
+
+      const parsed = LocoPacket.parse(packetBuffer);
+      if (parsed) {
+        // 바디 복호화 (AES)
+        try {
+          const decryptedBody = locoCrypto.decrypt(parsed.body);
+          // 서버 응답 이벤트 발생 (예: 'LOGINLIST', 'MSG' 등)
+          this.emit(parsed.header.method, decryptedBody);
+        } catch (e) {
+          console.error('[Loco] Decryption/Parsing error:', e);
+        }
+      }
+    }
   }
 }
 
