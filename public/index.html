@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Kakao Web Test Client</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="app">
+        <aside id="sidebar">
+            <h3>채팅방 목록</h3>
+            <ul id="room-list">
+                </ul>
+        </aside>
+
+        <main id="chat-container">
+            <header id="chat-header">
+                <span id="target-room-name">방을 선택하세요</span>
+            </header>
+            <div id="messages">
+                </div>
+            <form id="chat-form">
+                <input type="text" id="msg-input" placeholder="메시지를 입력하세요..." autocomplete="off">
+                <button type="submit">전송</button>
+            </form>
+        </main>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
