@@ -8,7 +8,7 @@ const yaml = require('js-yaml');
 
 // 모듈 로드
 const initializeDatabase = require('./lib/dbInit');
-const KakaoGateway = require('./lib/gateway');
+const KakaoAuth = require('./lib/kakaoAuth');
 
 // 1. 설정 파일 로드
 const configPath = path.resolve(__dirname, '../config.yaml');
@@ -21,16 +21,11 @@ try {
     process.exit(1);
 }
 
-// 2. 정적 파일 및 미들웨어 설정
-app.use(express.static(path.join(__dirname, '../public')));
+// 2. 미들웨어 설정
 app.use(express.json());
 
-// 3. 기본 라우트 (테스트용)
-app.get('/health', (req, res) => {
-    res.send({ status: 'UP', timestamp: new Date() });
-});
-
-// 3-1. 라우팅 설정 (정적 파일 설정보다 위에 두는 것이 제어하기 좋습니다)
+// 3. 라우팅 설정 (Clean URL 구현)
+// 정적 파일 제공(express.static)보다 위에 두어야 / 접속 시 리다이렉트가 우선 작동합니다.
 app.get('/', (req, res) => {
     console.log("[Route] Root 접속 -> /login 리다이렉트");
     res.redirect('/login');
@@ -44,17 +39,43 @@ app.get('/chat', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
-// 3-2. 그 외 정적 파일 제공 (이미지, CSS, JS 등)
+app.get('/health', (req, res) => {
+    res.send({ status: 'UP', timestamp: new Date() });
+});
+
+// 4. 정적 파일 제공 (CSS, JS, Images 등)
 app.use(express.static(path.join(__dirname, '../public')));
 
-
-// 4. Socket.io 실시간 통신 설정
+// 5. Socket.io 실시간 통신 설정 (통합)
 io.on('connection', (socket) => {
-    console.log(`[Socket] 새 연결 발생: ${socket.id}`);
+    console.log(`[Socket] 새 연결: ${socket.id}`);
 
-    socket.on('login', async (data) => {
-        console.log(`[Socket] 로그인 시도: ${data.userId}`);
-        // 로그인 및 카카오 게이트웨이 로직 연결 지점
+    // 로그인 요청 처리
+    socket.on('login_request', async (data) => {
+        console.log(`[Auth] 로그인 시도 계정: ${data.userId}`);
+        try {
+            // 카카오 인증 모듈 호출
+            const authResult = await KakaoAuth.login(data.userId, data.userPw);
+
+            if (authResult.success) {
+                socket.emit('login_response', {
+                    success: true,
+                    message: "카카오 로그인 성공",
+                    session: authResult.session 
+                });
+            } else {
+                socket.emit('login_response', {
+                    success: false,
+                    message: authResult.message || "인증 정보가 올바르지 않습니다."
+                });
+            }
+        } catch (err) {
+            console.error("[Auth] 로그인 처리 중 서버 에러:", err.message);
+            socket.emit('login_response', {
+                success: false,
+                message: "카카오 서버와 통신 중 에러가 발생했습니다."
+            });
+        }
     });
 
     socket.on('disconnect', () => {
@@ -62,32 +83,23 @@ io.on('connection', (socket) => {
     });
 });
 
-// 5. 서버 실행 함수
+// 6. 서버 실행 함수
 async function startServer() {
     console.log("-----------------------------------------");
-    console.log("웹 서버 시작 시도 중 (Port 80)...");
-
-    // DB 초기화를 비동기로 실행 (웹 서버 구동을 방해하지 않음)
+    
+    // DB 초기화 (Non-blocking)
     initializeDatabase()
-        .then(() => {
-            console.log("[DB] Oracle Database 연결 및 테이블 확인 완료");
-        })
-        .catch(err => {
-            console.error("[DB] 데이터베이스 연결 실패 (서버는 계속 구동됨):", err.message);
-        });
+        .then(() => console.log("[DB] Oracle Database 연결 성공"))
+        .catch(err => console.error("[DB] 연결 실패:", err.message));
 
-    // HTTP 서버 리스닝
     try {
         http.listen(80, '0.0.0.0', () => {
-            console.log(">>> KakaoWebTalk 서버가 가동되었습니다!");
-            console.log(">>> 접속 주소: http://<여러분의-OCI-IP>");
+            console.log(">>> KakaoWebTalk 서버가 80번 포트에서 가동되었습니다!");
             console.log("-----------------------------------------");
         });
     } catch (err) {
-        console.error(">>> [에러] 포트 80을 열 수 없습니다:", err.message);
-        console.log("힌트: sudo setcap 'cap_net_bind_service=+ep' $(which node) 실행 확인");
+        console.error(">>> [에러] 서버 가동 실패:", err.message);
     }
 }
 
-// 서버 기동
 startServer();
