@@ -1,56 +1,40 @@
 #!/bin/bash
 
-# 1. 필수 패키지 및 yq(YAML 파서) 설치
-sudo apt-get update && sudo apt-get upgrade -y
-sudo apt-get install -y curl build-essential libaio1 ufw jq
-sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq
-
-# 2. Node.js (LTS v20) 설치
+# 1. 필수 패키지 및 런타임 설치 (Node.js)
+echo "Installing Node.js and dependencies..."
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt-get install -y nodejs
+apt-get install -y nodejs build-essential
 
-# 3. Swap 메모리 설정 (1GB RAM 보완용 2GB)
-if [ ! -f /swapfile ]; then
-    sudo fallocate -l 2G /swapfile
-    sudo chmod 600 /swapfile
-    sudo mkswap /swapfile
-    sudo swapon /swapfile
-    echo '/swapfile swap swap defaults 0 0' | sudo tee -a /etc/fstab
-fi
+# 2. 프로젝트 디렉토리 권한 설정
+cd /webkakao
+chown -R $USER:$USER /webkakao
 
-# 4. 방화벽 계층화 설정 (iptables 기본 차단 후 UFW 관리)
-sudo iptables -F
-sudo iptables -X
-sudo iptables -P INPUT DROP
-sudo iptables -P FORWARD DROP
-sudo iptables -P OUTPUT ACCEPT
-sudo iptables -A INPUT -i lo -j ACCEPT
-sudo iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+# 3. Node.js 패키지 설치
+echo "Installing NPM packages..."
+cd /webkakao/server
+npm install bson net socket.io express
 
-# UFW 정책 적용
-sudo ufw default deny incoming
-sudo ufw default allow outgoing
-sudo ufw allow 22/tcp
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-sudo ufw allow $(yq '.PORT' config.yaml)/tcp
-sudo ufw --force enable
+# 4. Systemd 서비스 등록 (재부팅 시 자동 실행)
+echo "Registering systemd service..."
+cat <<EOF > /etc/systemd/system/webkakao.service
+[Unit]
+Description=Web KakaoTalk Client Server
+After=network.target
 
-# 5. 프로젝트 초기화 및 .env 생성
-npm install
-cat <<EOF > .env
-PORT=$(yq '.PORT' config.yaml)
-DB_USER=$(yq '.DB_USER' config.yaml)
-DB_PASSWORD=$(yq '.DB_PASSWORD' config.yaml)
-DB_CONNECTION_STRING='$(yq '.DB_CONNECTION_STRING' config.yaml)'
-KAKAO_DEVICE_UUID=$(yq '.KAKAO_DEVICE_UUID' config.yaml)
-KAKAO_ACCESS_TOKEN=$(yq '.KAKAO_ACCESS_TOKEN' config.yaml)
+[Service]
+Type=simple
+User=$USER
+WorkingDirectory=/webkakao/server
+ExecStart=/usr/bin/node index.js
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
 EOF
 
-# 6. PM2 설치
-sudo npm install -g pm2
+# 5. 서비스 활성화 및 시작
+systemctl daemon-reload
+systemctl enable webkakao.service
+systemctl start webkakao.service
 
-echo "------------------------------------------------"
-echo "Setup Complete! .env file generated from config.yaml"
-echo "Firewall: iptables(DROP) + UFW(Active)"
-echo "------------------------------------------------"
+echo "Web KakaoTalk setup complete! Server is running."
