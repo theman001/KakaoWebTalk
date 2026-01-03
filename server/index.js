@@ -30,6 +30,23 @@ app.get('/health', (req, res) => {
     res.send({ status: 'UP', timestamp: new Date() });
 });
 
+// server/index.js의 라우트 부분에 추가/수정
+app.get('/', (req, res) => {
+    // 세션 체크 로직 (현재는 임시로 항상 login으로 리다이렉트)
+    // 나중에 DB 세션 확인 후 성공 시 /chat으로 보낼 수 있습니다.
+    res.redirect('/login');
+});
+
+app.get('/login', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/login.html'));
+});
+
+app.get('/chat', (req, res) => {
+    // 실제 채팅 메인 페이지 (index.html)
+    res.sendFile(path.join(__dirname, '../public/index.html'));
+});
+
+
 // 4. Socket.io 실시간 통신 설정
 io.on('connection', (socket) => {
     console.log(`[Socket] 새 연결 발생: ${socket.id}`);
