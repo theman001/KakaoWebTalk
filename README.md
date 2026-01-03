@@ -8,7 +8,7 @@
 
 Ubuntu 환경의 최상위 루트(`/`)에서 다음 명령을 실행하십시오.
 
-`` `bash
+```bash
 # 프로젝트 복제 (루트 경로 권한 필요)
 sudo git clone https://github.com/your-repo/webkakao.git /webkakao
 cd /webkakao
@@ -16,7 +16,7 @@ cd /webkakao
 # 설정 스크립트 실행
 sudo chmod +x setup_kakao.sh
 sudo ./setup_kakao.sh
-`` `
+```
 
 ## 🛠 Features
 - **Zero-Setup**: `setup_kakao.sh` 실행 시 Node.js 설치부터 서비스 등록까지 자동화
