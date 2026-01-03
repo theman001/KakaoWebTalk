@@ -44,4 +44,4 @@ else
 fi
 
 
-sudo chmod 777 ./update.sh
+sudo chmod 777 /KakaoWebTalk/update.sh
