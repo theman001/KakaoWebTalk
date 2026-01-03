@@ -13,7 +13,6 @@ echo ">>> 최신 소스 코드를 가져오는 중..."
 git fetch --all
 git reset --hard origin/main
 
-sudo chmod 777 ./update.sh
 
 # 3. package.json 강제 초기화 및 패키지 재설치 (추가된 로직)
 echo ">>> package.json 초기화 및 필수 모듈 재설치 중..."
@@ -43,3 +42,6 @@ else
     echo ">>> !!! 서비스 재구동 실패. 'journalctl -u kakaoweb'를 확인하세요."
     exit 1
 fi
+
+
+sudo chmod 777 update.sh
