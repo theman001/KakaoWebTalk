@@ -1,0 +1,25 @@
+<div id="login-form">
+    <input type="text" id="email" placeholder="카카오계정 이메일">
+    <input type="password" id="password" placeholder="비밀번호">
+    <button onclick="doLogin()">로그인</button>
+</div>
+
+<script>
+    function doLogin() {
+        const email = document.getElementById("email").value;
+        const password = document.getElementById("password").value;
+        
+        // Socket.io를 통해 서버로 로그인 요청 전송
+        socket.emit("auth:login", { email, password });
+    }
+
+    socket.on("auth:success", (data) => {
+        localStorage.setItem("web_kakao_sid", data.sessionId);
+        alert("로그인 성공!");
+        window.location.href = "/chat.html";
+    });
+
+    socket.on("auth:fail", (data) => {
+        alert("로그인 실패: " + data.message);
+    });
+</script>
