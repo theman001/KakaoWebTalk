@@ -19,7 +19,7 @@ try {
     // 인스턴스를 여기서 생성하여 config를 주입합니다.
     kakaoAuth = new KakaoAuthModule(config); 
     console.log("[설정] config.yaml 로드 및 KakaoAuth 모듈 초기화 완료");
-} catch (e) { // <-- 여기서 } 가 빠져있었습니다.
+} catch (e) {
     console.error("[에러] 설정 파일 로드 실패:", e.message);
     process.exit(1);
 }
@@ -69,10 +69,14 @@ io.on('connection', (socket) => {
                 });
             }
         } catch (err) {
-            console.error("[Auth Error]:", err.message);
+            // 터미널에 에러의 전체 스택을 출력합니다.
+            console.error("========== [CRITICAL ERROR] ==========");
+            console.error(err); // 에러 객체 전체 출력 (Stack Trace 포함)
+            console.error("=====================================");
+        
             socket.emit('login_response', {
                 success: false,
-                message: "카카오 서버와 통신 중 에러가 발생했습니다."
+                message: "서버 내부 에러: " + err.message
             });
         }
     });
