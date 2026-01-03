@@ -14,3 +14,4 @@ database:
   # Wallet의 tnsnames.ora에서 확인한 서비스 이름으로 수정 (예: kakaowebdb_high)
   connectString: "kakaowebdb_high"
   walletPath: "/KakaoWebTalk/server/lib/wallet"
+  walletLocation: config.database.walletPath
