@@ -30,10 +30,9 @@ app.get('/health', (req, res) => {
     res.send({ status: 'UP', timestamp: new Date() });
 });
 
-// server/index.js의 라우트 부분에 추가/수정
+// 3-1. 라우팅 설정 (정적 파일 설정보다 위에 두는 것이 제어하기 좋습니다)
 app.get('/', (req, res) => {
-    // 세션 체크 로직 (현재는 임시로 항상 login으로 리다이렉트)
-    // 나중에 DB 세션 확인 후 성공 시 /chat으로 보낼 수 있습니다.
+    console.log("[Route] Root 접속 -> /login 리다이렉트");
     res.redirect('/login');
 });
 
@@ -42,9 +41,11 @@ app.get('/login', (req, res) => {
 });
 
 app.get('/chat', (req, res) => {
-    // 실제 채팅 메인 페이지 (index.html)
     res.sendFile(path.join(__dirname, '../public/index.html'));
 });
+
+// 3-2. 그 외 정적 파일 제공 (이미지, CSS, JS 등)
+app.use(express.static(path.join(__dirname, '../public')));
 
 
 // 4. Socket.io 실시간 통신 설정
