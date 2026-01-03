@@ -1,30 +1,31 @@
 const socket = io();
 
-// 1. 페이지 로드 시 세션 복구 시도
-const sessionId = localStorage.getItem("web_kakao_sid");
-if (sessionId) {
-    socket.emit("auth:restore", sessionId);
-}
+// 로그인 버튼 이벤트 리스너
+document.getElementById('loginBtn').addEventListener('click', () => {
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
 
-// 2. 메시지 수신 리스너
-socket.on("chat:receive", (data) => {
-    const chatBox = document.getElementById("messages");
-    chatBox.innerHTML += `<div><b>${data.sender}:</b> ${data.message}</div>`;
+    if (!email || !password) {
+        alert("이메일과 비밀번호를 모두 입력해주세요.");
+        return;
+    }
+
+    console.log("[Socket] 로그인 요청 전송...");
+    // 서버의 'login_request' 이벤트로 데이터 전송
+    socket.emit('login_request', {
+        userId: email,
+        userPw: password
+    });
 });
 
-// 3. 메시지 전송 함수
-function sendMessage() {
-    const msgInput = document.getElementById("msgInput");
-    const chatId = document.getElementById("currentChatId").value;
-    
-    socket.emit("chat:send", {
-        chatId: chatId,
-        message: msgInput.value
-    });
-    msgInput.value = "";
-}
-
-// 인증 실패 시 로그인 페이지로 이동
-socket.on("auth:required", () => {
-    window.location.href = "/login.html";
+// 서버로부터 로그인 결과 수신
+socket.on('login_response', (data) => {
+    if (data.success) {
+        console.log("[Socket] 로그인 성공:", data.message);
+        // 로그인 성공 시 채팅 페이지(/chat)로 이동
+        window.location.href = '/chat';
+    } else {
+        console.error("[Socket] 로그인 실패:", data.message);
+        alert("로그인 실패: " + data.message);
+    }
 });
