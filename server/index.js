@@ -1,22 +1,31 @@
-const oracledb = require('oracledb');
-const fs = require('fs');
-const yaml = require('js-yaml');
+const http = require("http");
+const express = require("express");
+const KakaoGateway = require("./lib/gateway");
+const initializeDatabase = require("./lib/dbInit");
+const fs = require("fs");
+const yaml = require("js-yaml");
 
-const config = yaml.load(fs.readFileSync('../config.yaml', 'utf8'));
+// 설정 로드
+const config = yaml.load(fs.readFileSync("../config.yaml", "utf8"));
 
-async function connectDB() {
-    try {
-        // Wallet 경로 지정하여 클라이언트 초기화
-        await oracledb.initOracleClient({ configDir: config.database.walletPath });
-        
-        const connection = await oracledb.getConnection({
-            user: config.database.user,
-            password: config.database.password,
-            connectString: config.database.connectString
-        });
-        console.log("OCI ATP DB 연결 성공 (Wallet 사용)");
-        return connection;
-    } catch (err) {
-        console.error("DB 접속 에러:", err);
-    }
+const app = express();
+const server = http.createServer(app);
+
+// 정적 파일 서빙
+app.use(express.static("../public"));
+
+async function startServer() {
+    // 1. DB 초기화 (테이블 생성 등)
+    const db = await initializeDatabase(config);
+    
+    // 2. Socket.io 게이트웨이 시작
+    new KakaoGateway(server, db, config);
+
+    // 3. 포트 리스닝
+    const PORT = config.server.port || 80;
+    server.listen(PORT, () => {
+        console.log(`KakaoWebTalk server running on port ${PORT}`);
+    });
 }
+
+startServer();
