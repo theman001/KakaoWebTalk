@@ -10,15 +10,14 @@ async function initializeDatabase() {
         const configPath = path.join(__dirname, '../../config.yaml');
         const config = yaml.load(fs.readFileSync(configPath, 'utf8'));
 
-        // 2. Oracle Client 초기화 (NJS-516 에러 해결의 핵심)
-        // config.yaml에 정의된 database.walletPath 경로를 사용합니다.
+        // 2. Oracle Client 설정 (Thin 모드 설정)
+        // Thick 모드 라이브러리 없이 Wallet만 사용하려면 아래 설정이 필요합니다.
         try {
-            oracledb.initOracleClient({ configDir: config.database.walletPath });
+            // initOracleClient를 호출하지 않거나, 호출하더라도 libDir을 제외합니다.
+            // 최신 드라이버에서는 아래 설정 없이도 connectString에 wallet 경로를 넣을 수 있습니다.
+            console.log("[DB] Oracle Thin 모드 접속 시도 중...");
         } catch (err) {
-            // 이미 초기화된 경우(NJS-077)는 무시하고 진행
-            if (!err.message.includes('NJS-077')) {
-                console.error("[DB] Oracle Client 설정 중 에러:", err);
-            }
+            console.error("[DB] 설정 중 에러:", err);
         }
 
         console.log("[DB] Oracle Database 연결 시도 중...");
