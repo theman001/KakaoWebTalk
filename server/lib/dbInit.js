@@ -1,20 +1,36 @@
 const oracledb = require('oracledb');
 const fs = require('fs');
 const yaml = require('js-yaml');
+const path = require('path');
 
 async function initializeDatabase() {
     let connection;
     try {
-        // 설정 로드
-        const config = yaml.load(fs.readFileSync('../config.yaml', 'utf8'));
+        // 1. 설정 파일 로드 (상위 폴더의 config.yaml)
+        const configPath = path.join(__dirname, '../../config.yaml');
+        const config = yaml.load(fs.readFileSync(configPath, 'utf8'));
 
+        // 2. Oracle Client 초기화 (NJS-516 에러 해결의 핵심)
+        // config.yaml에 정의된 database.walletPath 경로를 사용합니다.
+        try {
+            oracledb.initOracleClient({ configDir: config.database.walletPath });
+        } catch (err) {
+            // 이미 초기화된 경우(NJS-077)는 무시하고 진행
+            if (!err.message.includes('NJS-077')) {
+                console.error("[DB] Oracle Client 설정 중 에러:", err);
+            }
+        }
+
+        console.log("[DB] Oracle Database 연결 시도 중...");
+
+        // 3. 커넥션 맺기
         connection = await oracledb.getConnection({
             user: config.database.user,
             password: config.database.password,
             connectString: config.database.connectString
         });
 
-        console.log("[DB] Oracle Database 연결 성공. 테이블 확인 중...");
+        console.log("[DB] 연결 성공. 테이블 확인 중...");
 
         // 1. 세션 테이블 생성
         await connection.execute(`
