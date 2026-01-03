@@ -15,7 +15,18 @@ async function initializeDatabase() {
         try {
             // initOracleClient를 호출하지 않거나, 호출하더라도 libDir을 제외합니다.
             // 최신 드라이버에서는 아래 설정 없이도 connectString에 wallet 경로를 넣을 수 있습니다.
-            console.log("[DB] Oracle Thin 모드 접속 시도 중...");
+            console.log("[DB] Oracle Database 연결 시도 중...");
+    
+            // 3. 커넥션 맺기 (walletLocation 추가)
+            connection = await oracledb.getConnection({
+                user: config.database.user,
+                password: config.database.password,
+                connectString: config.database.connectString,
+                // 아래 줄을 추가하여 Thick 모드(DPI-1047) 에러를 방지합니다.
+                walletLocation: config.database.walletPath 
+            });
+    
+            console.log("[DB] 연결 성공. 테이블 확인 중...");
         } catch (err) {
             console.error("[DB] 설정 중 에러:", err);
         }
