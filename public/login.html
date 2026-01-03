@@ -25,35 +25,34 @@
 
         .login-card {
             background: white;
-            padding: 40px 30px;
+            padding: 50px 30px;
             border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
             width: 100%;
-            max-width: 360px;
+            max-width: 340px;
             text-align: center;
         }
 
         .logo {
-            font-size: 28px;
-            font-weight: bold;
+            font-size: 32px;
+            font-weight: 800;
             color: var(--kakao-brown);
-            margin-bottom: 30px;
-            letter-spacing: -1px;
+            margin-bottom: 40px;
+            letter-spacing: -1.5px;
         }
 
         .input-group {
-            margin-bottom: 15px;
+            margin-bottom: 12px;
         }
 
         input {
             width: 100%;
-            padding: 14px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
+            padding: 15px;
+            border: 1px solid #e5e5e5;
+            border-radius: 4px;
             box-sizing: border-box;
             font-size: 15px;
             outline: none;
-            transition: border-color 0.3s;
         }
 
         input:focus {
@@ -62,39 +61,26 @@
 
         button {
             width: 100%;
-            padding: 14px;
+            padding: 15px;
             background-color: var(--kakao-yellow);
             border: none;
-            border-radius: 6px;
+            border-radius: 4px;
             color: var(--kakao-brown);
             font-size: 16px;
             font-weight: bold;
             cursor: pointer;
-            transition: background 0.3s;
-            margin-top: 10px;
+            margin-top: 20px;
+            transition: background 0.2s;
         }
 
         button:hover {
-            background-color: #E6CF00;
+            background-color: #fada0a;
         }
 
-        .footer-links {
-            margin-top: 20px;
-            font-size: 13px;
-        }
-
-        .footer-links a {
-            color: var(--sub-blue);
-            text-decoration: none;
-            margin: 0 10px;
-        }
-
-        /* 반응형 처리 */
+        /* 반응형: 모바일에서는 카드 형태 제거 */
         @media (max-width: 480px) {
-            .login-card {
-                box-shadow: none;
-                background: transparent;
-            }
+            body { background-color: white; }
+            .login-card { box-shadow: none; border: none; }
         }
     </style>
 </head>
@@ -111,12 +97,7 @@
             <input type="password" id="password" placeholder="비밀번호" required>
         </div>
 
-        <button type="button" onclick="handleLogin()">로그인</button>
-
-        <div class="footer-links">
-            <a href="#">계정 찾기</a>
-            <a href="#">비밀번호 재설정</a>
-        </div>
+        <button type="button" id="loginBtn">로그인</button>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
