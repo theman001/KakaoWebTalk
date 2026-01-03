@@ -47,6 +47,37 @@ class KakaoGateway {
                 }
                 console.log(`[Socket] Browser disconnected: ${socket.id}`);
             });
+
+            socket.on("auth:login", async (data) => {
+                try {
+                    const auth = new KakaoAuth(this.config);
+                    const loginResult = await auth.login(data.email, data.password);
+            
+                    // 1. DB에 신규 세션 저장 (Wallet 연동된 DB 사용)
+                    const browserSessionId = crypto.randomBytes(20).toString('hex');
+                    await this.sm.saveSession(browserSessionId, {
+                        userId: loginResult.userId,
+                        authToken: loginResult.authToken,
+                        deviceUuid: this.config.kakao.deviceUuid
+                    });
+            
+                    // 2. LOCO 연결 설정 및 LOGINLIST 실행
+                    await this.setupLocoConnection(socket, {
+                        AUTH_TOKEN: loginResult.authToken,
+                        DEVICE_UUID: this.config.kakao.deviceUuid,
+                        REVISION: 0
+                    });
+            
+                    // 3. 브라우저에 세션 ID 전달 (localStorage 저장용)
+                    socket.emit("auth:success", { 
+                        sessionId: browserSessionId,
+                        userId: loginResult.userId 
+                    });
+            
+                } catch (err) {
+                    socket.emit("auth:fail", { message: err.message });
+                }
+            });
         });
     }
 
