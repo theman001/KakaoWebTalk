@@ -15,16 +15,16 @@ const server = http.createServer(app);
 app.use(express.static("../public"));
 
 async function startServer() {
-    // 1. DB 초기화 (테이블 생성 등)
-    const db = await initializeDatabase(config);
-    
-    // 2. Socket.io 게이트웨이 시작
-    new KakaoGateway(server, db, config);
+    console.log("웹 서버 시작 시도 중 (Port 80)...");
 
-    // 3. 포트 리스닝
-    const PORT = config.server.port || 80;
-    server.listen(PORT, () => {
-        console.log(`KakaoWebTalk server running on port ${PORT}`);
+    // DB 초기화를 비동기로 실행하거나, 에러 처리를 해서 웹 서버 구동을 방해하지 않게 함
+    initializeDatabase()
+        .then(() => console.log("[성공] DB 연결 및 테이블 확인 완료"))
+        .catch(err => console.error("[실패] DB 초기화 중 에러 발생:", err));
+
+    // DB 연결 여부와 상관없이 웹 서버는 즉시 실행
+    http.listen(80, '0.0.0.0', () => {
+        console.log(">>> 웹 서버가 80번 포트에서 가동되었습니다!");
     });
 }
 
