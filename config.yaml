@@ -10,8 +10,7 @@ kakao:
 
 database:
   user: "ADMIN"
-  password: "Your_OCI_DB_Password"
-  # Wallet 내부의 tnsnames.ora에 정의된 DB 접속 이름 (예: dbname_high)
-  connectString: "kakaotalk_db_high"
-  # Wallet 파일들이 들어있는 절대 경로
+  password: "KakaoWebDB0149"
+  # Wallet의 tnsnames.ora에서 확인한 서비스 이름으로 수정 (예: kakaowebdb_high)
+  connectString: "kakaowebdb_high"
   walletPath: "/KakaoWebTalk/server/lib/wallet"
