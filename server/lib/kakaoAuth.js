@@ -46,12 +46,16 @@ class KakaoAuth {
                 };
             }
         } catch (error) {
-            // 상세 에러 로깅 (404, 401 등 확인용)
+            console.error("---------- [Kakao API Debug] ----------");
             if (error.response) {
-                console.error("[Auth Error] 서버 응답:", error.response.status, error.response.data);
+                // 카카오 서버가 응답은 줬지만 에러인 경우 (400, 401, 404 등)
+                console.error("Status:", error.response.status);
+                console.error("Data:", JSON.stringify(error.response.data, null, 2));
             } else {
-                console.error("[Auth Error] 통신 실패:", error.message);
+                // 네트워크 연결 자체가 안 된 경우 (Timeout, DNS 등)
+                console.error("Error Message:", error.message);
             }
+            console.error("---------------------------------------");
             throw error;
         }
     }
