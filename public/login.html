@@ -1,25 +1,125 @@
-<div id="login-form">
-    <input type="text" id="email" placeholder="카카오계정 이메일">
-    <input type="password" id="password" placeholder="비밀번호">
-    <button onclick="doLogin()">로그인</button>
-</div>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KakaoWebTalk - Login</title>
+    <style>
+        :root {
+            --kakao-yellow: #FEE500;
+            --kakao-brown: #3C1E1E;
+            --sub-blue: #007AFF;
+            --bg-gray: #F2F2F2;
+        }
 
-<script>
-    function doLogin() {
-        const email = document.getElementById("email").value;
-        const password = document.getElementById("password").value;
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+            background-color: var(--bg-gray);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .login-card {
+            background: white;
+            padding: 40px 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 360px;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            color: var(--kakao-brown);
+            margin-bottom: 30px;
+            letter-spacing: -1px;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        input {
+            width: 100%;
+            padding: 14px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 15px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        input:focus {
+            border-color: var(--sub-blue);
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background-color: var(--kakao-yellow);
+            border: none;
+            border-radius: 6px;
+            color: var(--kakao-brown);
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background-color: #E6CF00;
+        }
+
+        .footer-links {
+            margin-top: 20px;
+            font-size: 13px;
+        }
+
+        .footer-links a {
+            color: var(--sub-blue);
+            text-decoration: none;
+            margin: 0 10px;
+        }
+
+        /* 반응형 처리 */
+        @media (max-width: 480px) {
+            .login-card {
+                box-shadow: none;
+                background: transparent;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="login-card">
+        <div class="logo">KakaoWebTalk</div>
         
-        // Socket.io를 통해 서버로 로그인 요청 전송
-        socket.emit("auth:login", { email, password });
-    }
+        <div class="input-group">
+            <input type="text" id="email" placeholder="카카오계정 (이메일)" required>
+        </div>
+        
+        <div class="input-group">
+            <input type="password" id="password" placeholder="비밀번호" required>
+        </div>
 
-    socket.on("auth:success", (data) => {
-        localStorage.setItem("web_kakao_sid", data.sessionId);
-        alert("로그인 성공!");
-        window.location.href = "/chat.html";
-    });
+        <button type="button" onclick="handleLogin()">로그인</button>
 
-    socket.on("auth:fail", (data) => {
-        alert("로그인 실패: " + data.message);
-    });
-</script>
+        <div class="footer-links">
+            <a href="#">계정 찾기</a>
+            <a href="#">비밀번호 재설정</a>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
