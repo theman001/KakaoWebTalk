@@ -15,27 +15,35 @@ const KakaoCrypto = {
      */
     encryptPassword(password) {
         try {
-            console.log("[DEBUG] encryptPassword 호출됨 - AES-256 로직 진입"); // 반영 확인용
+            // 1. IV: Java의 substring(0, 16)과 동일하게 정확히 16바이트 추출
+            const ivStr = this.PW_ENC_KEY.substring(0, 16);
+            const iv = Buffer.from(ivStr, 'utf8');
+
+            // 2. KEY: 32바이트 빈 버퍼를 만들고 앞부분만 키로 채움 (Java의 System.arraycopy 재현)
+            const key = Buffer.alloc(32); // 모두 0x00으로 초기화됨
+            const keyBytes = Buffer.from(this.PW_ENC_KEY, 'utf8');
+            keyBytes.copy(key, 0); // 22바이트 복사, 나머지 10바이트는 0x00 유지
+
+            // 3. Cipher 생성 시 알고리즘 명칭을 명확히 전달
+            const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
             
-            const keyBuffer = Buffer.alloc(32, 0); 
-            const keyData = Buffer.from(this.PW_ENC_KEY, 'utf8');
-            keyData.copy(keyBuffer, 0);
-
-            const iv = Buffer.from(this.PW_ENC_KEY.substring(0, 16), 'utf8');
-
-            const cipher = crypto.createCipheriv('aes-256-cbc', keyBuffer, iv);
+            // PKCS7 패딩 명시적 설정
             cipher.setAutoPadding(true);
             
-            let encrypted = cipher.update(password, 'utf8', 'base64');
-            encrypted += cipher.final('base64');
+            let encrypted = cipher.update(password, 'utf8');
+            encrypted = Buffer.concat([encrypted, cipher.final()]);
             
-            console.log("[DEBUG] 결과 길이:", encrypted.length); // 44자 이상이어야 함
-            return encrypted;
+            const result = encrypted.toString('base64');
+            
+            // 실시간 디버깅 출력
+            console.log(`[CRYPTO_CHECK] KeyLength: ${key.length}, IVLength: ${iv.length}, ResultLength: ${result.length}`);
+            
+            return result;
         } catch (error) {
             console.error("[Crypto Error]:", error);
             return null;
         }
-    },
+    }
 
     /**
      * UVC3 생성 (2단계 중첩 암호화)
