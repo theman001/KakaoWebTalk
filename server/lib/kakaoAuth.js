@@ -43,17 +43,19 @@ class KakaoAuth {
             
             // 분석 1순위: uvc3 내부 하드웨어 정보 정밀화
             const hwInfo = {
-                os: "android",
-                model: this.model,
-                item_type: "J",
-                app_ver: this.appVersion,
-                protocol_ver: "1.1",
+                os_name: "android",
+                os_version: "14",           // 로그의 'v' 값과 일치해야 함
+                model: this.model,          // "SM-G991N"
+                app_version: this.appVersion, // "25.11.2"
                 device_uuid: deviceUuid,
                 device_name: "Galaxy S21",
-                cpuName: "exynos2100", 
-                batteryPct: 95,        
-                screenSize: "2400x1080",
-                va: []                 
+                language: "ko",             // 추가 권장 (로그의 lang과 매칭)
+                screen_size: "2400x1080",
+                item_type: "J",
+                // cpuName, batteryPct 등은 서버에서 필수값이 아닐 확률이 높으나, 
+                // 키 이름을 소문자+언더바(snake_case)로 유지하는 것이 안전합니다.
+                cpu_name: "exynos2100",
+                battery_level: 95
             };
 
             const uvc3 = kakaoCrypto.createUvc3(hwInfo);
