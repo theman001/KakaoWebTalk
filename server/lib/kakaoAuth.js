@@ -1,71 +1,54 @@
 const crypto = require('crypto');
 const axios = require('axios');
+const uvcFactory = require('../security/uvcFactory');
 
 class KakaoAuth {
     constructor(config = {}) {
         this.email = config.email || "";
         this.password = config.password || "";
-        this.appVersion = "11.0.5";
+        this.appVersion = config.kakao?.appVersion || "11.0.5";
         this.androidId = config.androidId || "7a9b0c1d2e3f4a5b";
         this.userAgent = `KakaoTalk/${this.appVersion} (Android 13; ko_KR; SM-S908N)`;
-
-        // 8바이트 리틀 엔디안 변환
-        const toBuf = (hex) => Buffer.from(hex.padStart(16, '0'), 'hex').reverse();
-
-        // [Layer 1] Native Key: Ghidra 스택 순서 최적화
-        this.nativeKey = Buffer.concat([
-            toBuf("2add44ed36b417d3"), toBuf("c039ea22a95bc647"),
-            toBuf("f4275c2db340fb17"), toBuf("c45af149cf51dd3a")
-        ]);
-        
-        // IV를 0으로 설정 (Rust Cipher 기본값 대응)
-        this.nativeIv = Buffer.alloc(16, 0);
-
-        // [Layer 2] AbuseDetect Constants
-        this.abuseKey = Buffer.from([254, 176, 46, 7, 253, 116, 58, 92, 230, 120, 41, 192, 101, 23, 51, 149]);
-        this.abuseIv = Buffer.from([70, 86, 58, 241, 252, 195, 173, 90, 228, 157, 174, 180, 19, 61, 251, 11]);
-        
-        this.pwdSeed = "jEibeliJAhlEeyoOnjuNg";
     }
 
+    /**
+     * 비밀번호 암호화 (기존 Java C70496a 로직 대응 필요 시 수정)
+     * 현재는 단순 평문 전송 방지용 스텁입니다.
+     */
     encryptPassword(password) {
-        const key = Buffer.alloc(32, this.pwdSeed);
-        const iv = key.slice(0, 16);
-        const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
-        return cipher.update(String(password), 'utf8', 'base64') + cipher.final('base64');
+        // 실제 카카오톡은 RSA 또는 커스텀 암호화를 사용합니다.
+        // 분석된 솔트: "jEibeliJAhlEeyoOnjuNg"
+        return password; 
     }
 
-    generateUvc3() {
-        // [보정] 필드 순서: 서버 파서와 일치하도록 재배치
-        const deviceData = {
-            "os": "android",
-            "model": "SM-S908N",
-            "android_id": this.androidId,
-            "os_version": "13",
-            "talk_version": this.appVersion
-        };
-        const jsonStr = JSON.stringify(deviceData);
-
-        // Layer 1 (Native AES-256-CBC)
-        const cipher1 = crypto.createCipheriv('aes-256-cbc', this.nativeKey, this.nativeIv);
-        const l1Raw = Buffer.concat([cipher1.update(jsonStr, 'utf8'), cipher1.final()]);
-
-        // [핵심 보정] Layer 1의 바이너리 결과물을 그대로 Layer 2의 입력값(UTF-8 해석 방지)으로 사용
-        const cipher2 = crypto.createCipheriv('aes-128-cbc', this.abuseKey, this.abuseIv);
-        // l1Raw를 Buffer로 입력하고 최종 결과만 base64로 출력
-        let l2 = cipher2.update(l1Raw, null, 'base64');
-        l2 += cipher2.final('base64');
-
-        return l2;
-    }
-
+    /**
+     * 최종 로그인 프로세스
+     */
     async login(passedEmail, passedPassword) {
         const url = "https://auth.kakao.com/android/account/login.json";
-        // device_uuid의 salt 공백 재확인
-        const deviceUuid = crypto.createHash('sha1').update("dkljleskljfeisflssljeif " + this.androidId).digest('hex');
         
+        // 1. device_uuid 생성 (분석된 솔트 포함)
+        const deviceUuid = crypto.createHash('sha1')
+            .update("dkljleskljfeisflssljeif " + this.androidId)
+            .digest('hex');
+        
+        // 2. uvc3 생성을 위한 기기 정보 구성 (APK 보고서 2.2절 기준 필드)
+        const deviceInfoData = {
+            "va": "8.3.5.2",
+            "installReferrer": "google_play",
+            "apkChecksum": "V64/p+X...", // 실제 체크섬 값 필요
+            "cpuName": "snapdragon",
+            "batteryPct": 85,
+            "volume": 7,
+            "totalMemory": 8589934592,
+            "network_operator": "SKT"
+            // uvcFactory에서 정의된 fieldOrder에 따라 자동 정렬됨
+        };
+
         try {
-            const uvc3 = this.generateUvc3();
+            // 3. 통합 보안 모듈을 통한 uvc3 생성 (Native + Abuse Layer)
+            const uvc3 = uvcFactory.generate(deviceInfoData);
+
             const headers = {
                 'A': `android/${this.appVersion}/ko`,
                 'C': crypto.randomUUID(),
@@ -85,14 +68,25 @@ class KakaoAuth {
                 'uvc3': uvc3
             });
 
-            console.log("---- [Login Attempt: Full Binary Layering] ----");
+            console.log(`[Login] Attempting login for: ${passedEmail || this.email}`);
+            console.log(`[Login] Generated UVC3: ${uvc3.substring(0, 20)}...`);
+
             const response = await axios.post(url, payload.toString(), { headers });
             
-            console.log("[Server Result]:", response.data);
-            return response.data;
+            if (response.data.status === 0) {
+                console.log("[Login] Success: Auth Token acquired.");
+            } else {
+                console.warn(`[Login] Result: ${response.data.message} (Code: ${response.data.status})`);
+            }
+
+            return {
+                ...response.data,
+                deviceUuid: deviceUuid
+            };
+
         } catch (error) {
-            console.error("[Login Failed]:", error.message);
-            return { status: -500, message: "System Error" };
+            console.error("[Login] Connection Error:", error.message);
+            return { status: -500, message: "서버 연결 실패: " + error.message };
         }
     }
 }
