@@ -1,66 +1,112 @@
-const net = require('net');
+const tls = require('tls'); // 🔐 보안 연결을 위해 net 대신 tls 사용
 const bson = require('bson');
 const EventEmitter = require('events');
 
+/**
+ * KakaoTalk LOCO Protocol Client
+ * - 22바이트 헤더 구조 및 BSON 본문 처리
+ * - TLS 암호화 세션 지원
+ */
 class LocoClient extends EventEmitter {
-    constructor(config) {
+    constructor(config = {}) {
         super();
         this.config = config;
-        this.socket = new net.Socket();
+        this.socket = null;
         this.packetId = 1;
         this.connected = false;
+        this.buffer = Buffer.alloc(0); // 🧩 잘려서 오는 패킷 데이터를 모으기 위한 버퍼
     }
 
     async connect() {
         return new Promise((resolve, reject) => {
-            // 카카오 체크인 서버에서 받은 IP/Port가 없으면 기본값(예시) 사용
-            const host = this.config.host || '110.76.142.164'; 
+            // 카카오 체크인 서버 기본값 (VTC 서버 등)
+            const host = this.config.host || '110.76.142.164';
             const port = this.config.port || 443;
 
-            this.socket.connect(port, host, () => {
-                console.log(`[LOCO] Connected to ${host}:${port}`);
+            console.log(`[LOCO] Connecting to ${host}:${port} via TLS...`);
+
+            // 카카오 서버는 443 포트에서 TLS 통신을 사용함
+            this.socket = tls.connect(port, host, {
+                rejectUnauthorized: false // 카카오 자체 인증서 허용
+            }, () => {
+                console.log(`[LOCO] Secure Connection Established.`);
                 this.connected = true;
                 resolve();
             });
 
             this.socket.on('data', (data) => this.handleRawData(data));
-            this.socket.on('error', (err) => this.emit('error', err));
+            this.socket.on('error', (err) => {
+                console.error(`[LOCO] Socket Error: ${err.message}`);
+                this.emit('error', err);
+                reject(err);
+            });
             this.socket.on('close', () => {
                 this.connected = false;
+                console.log(`[LOCO] Connection Closed.`);
                 this.emit('close');
             });
         });
     }
 
-    // 카카오 규격에 맞는 22바이트 헤더 + BSON 패킷 생성
+    /**
+     * 카카오 규격: 22바이트 헤더 + BSON 바디
+     */
     sendPacket(method, body) {
-        if (!this.connected) return;
+        if (!this.connected || !this.socket) return;
 
-        const bsonBody = bson.serialize(body);
-        const header = Buffer.alloc(22);
+        try {
+            const bsonBody = bson.serialize(body);
+            const header = Buffer.alloc(22);
 
-        header.writeUInt32LE(this.packetId++, 0); // Packet ID
-        header.writeUInt16LE(0, 4);              // Status (0)
-        header.write(method.padEnd(11, '\0'), 6, 11, 'ascii'); // Method (11 bytes)
-        header.writeInt8(0, 17);                 // DataType (0 for BSON)
-        header.writeUInt32LE(bsonBody.length, 18); // Body Length
+            // 1. Packet ID (4 bytes, Little Endian)
+            header.writeUInt32LE(this.packetId++, 0);
+            // 2. Status (2 bytes, 0)
+            header.writeUInt16LE(0, 4);
+            // 3. Method (11 bytes, Null-padded ASCII)
+            header.write(method.padEnd(11, '\0'), 6, 11, 'ascii');
+            // 4. DataType (1 byte, 0 for BSON)
+            header.writeInt8(0, 17);
+            // 5. Body Length (4 bytes, Little Endian)
+            header.writeUInt32LE(bsonBody.length, 18);
 
-        const packet = Buffer.concat([header, bsonBody]);
-        this.socket.write(packet);
+            const packet = Buffer.concat([header, bsonBody]);
+            this.socket.write(packet);
+            
+            // console.log(`[LOCO] Sent: ${method} (ID: ${this.packetId - 1})`);
+        } catch (err) {
+            console.error(`[LOCO] Send Error: ${err.message}`);
+        }
     }
 
+    /**
+     * TCP 스트림 특성상 패킷이 잘려올 수 있으므로 누적 버퍼 처리
+     */
     handleRawData(data) {
-        let offset = 0;
-        while (offset + 22 <= data.length) {
-            const bodyLen = data.readUInt32LE(offset + 18);
-            if (offset + 22 + bodyLen > data.length) break;
+        // 새로 받은 데이터를 기존 버퍼에 합침
+        this.buffer = Buffer.concat([this.buffer, data]);
 
-            const method = data.toString('ascii', offset + 6, offset + 17).replace(/\0/g, '');
-            const bodyBuffer = data.slice(offset + 22, offset + 22 + bodyLen);
-            const body = bson.deserialize(bodyBuffer);
+        while (this.buffer.length >= 22) {
+            // 헤더에서 바디 길이를 읽음 (마지막 4바이트)
+            const bodyLen = this.buffer.readUInt32LE(18);
+            const totalLen = 22 + bodyLen;
 
-            this.emit('packet', method, body);
-            offset += 22 + bodyLen;
+            // 전체 패킷이 아직 다 오지 않았다면 다음 루프로 대기
+            if (this.buffer.length < totalLen) break;
+
+            // 패킷 추출
+            const packet = this.buffer.slice(0, totalLen);
+            this.buffer = this.buffer.slice(totalLen);
+
+            // 데이터 해석
+            const method = packet.toString('ascii', 6, 17).replace(/\0/g, '');
+            const bodyBuffer = packet.slice(22);
+            
+            try {
+                const body = bson.deserialize(bodyBuffer);
+                this.emit('packet', method, body);
+            } catch (e) {
+                console.error(`[LOCO] BSON Decode Error: ${e.message}`);
+            }
         }
     }
 
