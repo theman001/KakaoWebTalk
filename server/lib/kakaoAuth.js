@@ -13,7 +13,7 @@ class KakaoAuth {
     }
 
     /**
-     * [LOGGING] 카카오 서버 전송 데이터 상세 출력
+     * [LOGGING] 카카오 서버 전송 데이터 상세 시각화
      */
     logDetailedRequest(url, headers, rawPassword, encryptedPassword, params) {
         console.log("┌─────────────────── [KAKAO AUTH REQUEST START] ───────────────────┐");
@@ -31,9 +31,9 @@ class KakaoAuth {
         console.log("├──────────────────────────────────────────────────────────────────┤");
         console.log("│ [REQUEST BODY]");
         Object.entries(params).forEach(([key, val]) => {
-            // uvc3는 너무 길어서 일부만 출력 (필요시 전체 출력 가능)
+            // uvc3와 password는 매우 길기 때문에 가독성을 위해 요약 출력
             const displayVal = (key === 'uvc3' || key === 'password') && val.length > 50 
-                ? val.substring(0, 50) + "..." 
+                ? `${val.substring(0, 50)}... [Total: ${val.length} chars]`
                 : val;
             console.log(`│   ${key.padEnd(15)} : ${displayVal}`);
         });
@@ -43,9 +43,13 @@ class KakaoAuth {
     async login(email, password) {
         try {
             // 1. 보안 모듈을 통한 데이터 가공 및 생성
+            // 분석 결과 1순위: SHA-1 40자 Device UUID
             const deviceUuid = this.config.kakao.deviceUuid || kakaoCrypto.generateDeviceUuid(this.model);
+            
+            // 분석 결과 2순위: C70496a 기반 AES-256-CBC 패스워드 암호화
             const encryptedPassword = kakaoCrypto.encryptPassword(password);
             
+            // 분석 결과 3순위: 2단계 암호화용 하드웨어 정보 구성
             const hwInfo = {
                 os: "android",
                 model: this.model,
@@ -54,11 +58,13 @@ class KakaoAuth {
                 protocol_ver: "1.1",
                 device_uuid: deviceUuid,
                 device_name: "Galaxy S21",
-                cpu: "exynos2100",
-                screen: "2400x1080"
+                cpuName: "exynos2100", // 분석 기반 추가 필드
+                batteryPct: 95,        // 분석 기반 추가 필드
+                screenSize: "2400x1080", // 분석 기반 추가 필드
+                va: []                 // VerifyApps 빈 배열
             };
 
-            // uvc3 생성 (TalkHello 네이티브 암호화)
+            // uvc3 생성 (Native AES-256 -> Java Layer AES-128 재암호화)
             const uvc3 = kakaoCrypto.createUvc3(hwInfo);
 
             // 2. HTTP 헤더 구성
@@ -71,13 +77,14 @@ class KakaoAuth {
                 'Host': 'auth.kakao.com'
             };
 
-            // 3. 요청 파라미터 구성
+            // 3. 요청 파라미터 구성 (분석된 누락 필드 보강)
             const params = {
                 email: email,
                 password: encryptedPassword,
                 device_uuid: deviceUuid,
                 os: hwInfo.os,
                 model: hwInfo.model,
+                model_name: hwInfo.model, // 보강 필드
                 v: this.androidVersion,
                 app_ver: this.appVersion,
                 uvc3: uvc3,
@@ -85,6 +92,7 @@ class KakaoAuth {
                 lang: this.language,
                 device_name: hwInfo.device_name,
                 forced: "true",
+                permanent: "true",       // 보강 필드
                 format: "json"
             };
 
@@ -101,6 +109,10 @@ class KakaoAuth {
 
             // [LOGGING] 응답 성공 로깅
             console.log(`[KakaoAuth Success] HTTP ${response.status} - User ID: ${response.data.userId || 'N/A'}`);
+            
+            if (response.data.status !== 0) {
+                console.warn(`[KakaoAuth Warning] Message: ${response.data.message || 'Unknown'}`);
+            }
             
             return response.data;
 
