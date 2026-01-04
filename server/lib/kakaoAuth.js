@@ -5,7 +5,8 @@ const kakaoCrypto = require('../security/kakaoCrypto');
 class KakaoAuth {
     constructor(config) {
         this.config = config;
-        this.authHost = "[https://auth.kakao.com](https://auth.kakao.com)";
+        // URL 문자열에 공백이나 제어문자가 포함되지 않도록 trim() 처리
+        this.authHost = "https://auth.kakao.com".trim();
         this.appVersion = "25.11.2";
         this.androidVersion = "14";
         this.language = "ko";
@@ -33,7 +34,7 @@ class KakaoAuth {
                 cpuCore: 8,
                 cpuAbi: "arm64-v8a",
                 
-                batteryPct: 95,               // ✅ 필드명 정정 (batteryLevel -> batteryPct)
+                batteryPct: 95,               // ✅ batteryLevel -> batteryPct 정정
                 batteryStatus: "charging",
                 batteryHealth: "good",
                 powerSource: "usb",
@@ -72,7 +73,7 @@ class KakaoAuth {
                 email: email,
                 password: encryptedPassword,
                 device_uuid: deviceUuid,
-                os: "android",                // ✅ Fixed: undefined 방지
+                os: "android",
                 model: this.model,
                 model_name: this.model, 
                 v: this.androidVersion,
@@ -86,14 +87,20 @@ class KakaoAuth {
                 format: "json"
             };
 
-            // 상세 요청 로그 출력 (디버깅용)
-            this.logDetailedRequest(params, headers);
+            // URL 생성 시 발생할 수 있는 잠재적 오류 방지
+            const targetUrl = `${this.authHost}/android/account/login.json`.replace(/\s/g, '');
+
+            // 상세 요청 로그 출력
+            this.logDetailedRequest(targetUrl, params, headers);
 
             // 5. POST 요청 실행
             const response = await axios.post(
-                `${this.authHost}/android/account/login.json`, 
+                targetUrl, 
                 new URLSearchParams(params).toString(),
-                { headers: headers }
+                { 
+                    headers: headers,
+                    timeout: 10000 // 타임아웃 추가
+                }
             );
 
             console.log(`[KakaoAuth Success] HTTP ${response.status} - User ID: ${response.data.userId || 'N/A'}`);
@@ -111,9 +118,9 @@ class KakaoAuth {
         }
     }
 
-    logDetailedRequest(params, headers) {
+    logDetailedRequest(url, params, headers) {
         console.log("┌──────── [KAKAO AUTH REQUEST START] ────────┐");
-        console.log(`│ [URL]     : ${this.authHost}/android/account/login.json`);
+        console.log(`│ [URL]     : ${url}`);
         console.log(`│ [HEADERS] : A=${headers['A']}, C=${headers['C']}`);
         console.log(`│ [BODY]    : email=${params.email}, os=${params.os}, v=${params.v}`);
         console.log(`│ [UVC3]    : ${params.uvc3.substring(0, 50)}...`);
@@ -125,6 +132,9 @@ class KakaoAuth {
         if (error.response) {
             console.error(`│ STATUS : ${error.response.status}`);
             console.error(`│ DATA   : ${JSON.stringify(error.response.data)}`);
+        } else if (error.request) {
+            console.error(`│ MESSAGE: Request failed (No response)`);
+            console.error(`│ DETAILS: ${error.message}`);
         } else {
             console.error(`│ MESSAGE: ${error.message}`);
         }
