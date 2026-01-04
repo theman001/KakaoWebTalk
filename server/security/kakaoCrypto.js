@@ -1,52 +1,76 @@
 const crypto = require('crypto');
 const talkHello = require('./talkHello');
 
+/**
+ * 카카오톡 암호화 유틸리티 (커서AI 분석 반영 최종본)
+ * status: -404 에러 해결을 위한 AES-256-CBC 정밀 구현
+ */
 const KakaoCrypto = {
-    // 분석 2순위: 패스워드 전용 키 (C70496a)
+    // C70496a 클래스 전용 키
     PW_ENC_KEY: "jEibeliJAhlEeyoOnjuNg",
 
     /**
-     * 패스워드 암호화 (AES-256-CBC / PKCS7)
-     * 분석 결과: KEY는 32바이트 전체, IV는 앞 16바이트 사용
+     * Password 암호화 (AES-256-CBC)
+     * 32바이트 NULL 패딩 키 + 16바이트 IV 적용
      */
     encryptPassword(password) {
-        // 1. KEY(32B)와 IV(16B) 생성
-        const key = Buffer.alloc(32, 0);
-        Buffer.from(this.PW_ENC_KEY).copy(key); // jEibeli... 값을 32바이트 버퍼에 복사
-        
-        const iv = Buffer.alloc(16, 0);
-        Buffer.from(this.PW_ENC_KEY.substring(0, 16)).copy(iv);
+        try {
+            // 1. IV 생성: 키의 첫 16바이트 (UTF-8)
+            const iv = Buffer.from(this.PW_ENC_KEY.substring(0, 16), 'utf8');
 
-        // 2. 암호화 수행
-        const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
-        cipher.setAutoPadding(true);
-        
-        let encrypted = cipher.update(password, 'utf8', 'base64');
-        encrypted += cipher.final('base64');
-        return encrypted;
+            // 2. KEY 생성: 32바이트 배열 생성 후 키 복사 (NULL 패딩 자동 적용)
+            const keyBuffer = Buffer.alloc(32, 0); 
+            const keyData = Buffer.from(this.PW_ENC_KEY, 'utf8');
+            keyData.copy(keyBuffer, 0);
+
+            // 3. 암호화 수행 (PKCS7 패딩 포함)
+            const cipher = crypto.createCipheriv('aes-256-cbc', keyBuffer, iv);
+            cipher.setAutoPadding(true);
+            
+            let encrypted = cipher.update(password, 'utf8', 'base64');
+            encrypted += cipher.final('base64');
+            
+            return encrypted;
+        } catch (error) {
+            console.error("[Crypto Error] Password Encryption Failed:", error);
+            return null;
+        }
     },
 
     /**
-     * 분석 1순위: uvc3 (2단계 암호화 시스템)
+     * UVC3 생성 (2단계 중첩 암호화)
+     * Step 1: TalkHello (AES-256)
+     * Step 2: AbuseDetect (AES-128)
      */
     createUvc3(hwInfo) {
-        // Step 1: TalkHello 네이티브 암호화 (AES-256-CBC)
-        const step1Base64 = talkHello.encrypt(JSON.stringify(hwInfo));
-        const step1Buffer = Buffer.from(step1Base64, 'base64');
+        try {
+            // Step 1: TalkHello Native 암호화
+            const step1Base64 = talkHello.encrypt(JSON.stringify(hwInfo));
+            const step1Buffer = Buffer.from(step1Base64, 'base64');
 
-        // Step 2: Java Layer 재암호화 (AES-128-CBC / PKCS5)
-        // 분석 리포트의 Signed Byte 배열을 Unsigned로 변환하여 적용
-        const step2Key = Buffer.from([254, 176, 46, 7, 253, 116, 58, 92, 230, 120, 41, 192, 101, 23, 51, 149]);
-        const step2Iv = Buffer.from([70, 86, 58, 241, 252, 195, 173, 90, 228, 157, 174, 180, 19, 61, 251, 11]);
+            // Step 2: AES-128-CBC 재암호화 (부호 없는 바이트 보정)
+            const step2Key = Buffer.from([
+                0xFE, 0xB0, 0x2E, 0x07, 0xFD, 0x74, 0x3A, 0x5C,
+                0xE6, 0x78, 0x29, 0xC0, 0x65, 0x17, 0x33, 0x95
+            ]);
+            const step2Iv = Buffer.from([
+                0x46, 0x56, 0x3A, 0xF1, 0xFC, 0xC3, 0xAD, 0x5A,
+                0xE4, 0x9D, 0xAE, 0xB4, 0x13, 0x3D, 0xFB, 0x0B
+            ]);
 
-        const cipher = crypto.createCipheriv('aes-128-cbc', step2Key, step2Iv);
-        let encrypted = cipher.update(step1Buffer);
-        encrypted = Buffer.concat([encrypted, cipher.final()]);
+            const cipher = crypto.createCipheriv('aes-128-cbc', step2Key, step2Iv);
+            let encrypted = cipher.update(step1Buffer);
+            encrypted = Buffer.concat([encrypted, cipher.final()]);
 
-        return encrypted.toString('base64');
+            return encrypted.toString('base64');
+        } catch (error) {
+            console.error("[Crypto Error] UVC3 Creation Failed:", error);
+            return null;
+        }
     },
 
     generateDeviceUuid(model) {
+        // 분석 결과에 따른 SHA-1 해시 생성
         const salt = "dkljleskljfeisflssljeif";
         return crypto.createHash('sha1').update(model + salt).digest('hex');
     }
