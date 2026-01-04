@@ -5,7 +5,7 @@ const kakaoCrypto = require('../security/kakaoCrypto');
 class KakaoAuth {
     constructor(config) {
         this.config = config;
-        this.authHost = "https://auth.kakao.com";
+        this.authHost = "[https://auth.kakao.com](https://auth.kakao.com)";
         this.appVersion = "25.11.2";
         this.androidVersion = "14";
         this.language = "ko";
@@ -21,44 +21,62 @@ class KakaoAuth {
             const deviceUuid = this.config.kakao.deviceUuid || kakaoCrypto.generateDeviceUuid(this.model);
             const encryptedPassword = kakaoCrypto.encryptPassword(password);
             
-            // 2. [중요] uvc3 내부용 하드웨어 정보 (CamelCase 적용 및 필드 정밀화)
-            // 서버 복호화 시 대조 데이터로 사용됨
+            // 2. uvc3 내부용 하드웨어 정보 (정밀화된 실제 안드로이드 규격)
             const hwInfo = {
-                osName: "android",
-                osVersion: this.androidVersion,
-                model: this.model,
-                appVersion: this.appVersion,
-                deviceUuid: deviceUuid,
-                deviceName: "Galaxy S21",
-                language: this.language,
-                screenSize: "2400x1080",
-                itemType: "J",
+                va: [],                       // [필수] VerifyApps 배열
+                installReferrer: "",          // [필수]
+                apkChecksum: "",              // [필수]
+                appHierarchy: "",             // [필수]
+                
                 cpuName: "exynos2100",
-                batteryLevel: 95
+                cpuPlatform: "exynos",
+                cpuCore: 8,
+                cpuAbi: "arm64-v8a",
+                
+                batteryPct: 95,               // ✅ 필드명 정정 (batteryLevel -> batteryPct)
+                batteryStatus: "charging",
+                batteryHealth: "good",
+                powerSource: "usb",
+                
+                brightness: 128,
+                screenSize: "2400x1080",
+                screenDensity: 420,
+                screenPpi: 432,
+                screenRefreshRate: 60,
+                isMultiWindow: false,
+                
+                volume: 7,
+                totalMemory: 8589934592,      // 8GB
+                webviewVersion: "120.0.6099.210",
+                
+                network_operator: "SKT",      // snake_case 주의
+                is_roaming: false,
+                supportMultiSim: true,
+                sims: []
             };
 
             const uvc3 = kakaoCrypto.createUvc3(hwInfo);
 
-            // 3. HTTP Headers 설정 (A, C 헤더 및 User-Agent)
+            // 3. HTTP Headers 설정
             const headers = {
                 'A': `android/${this.appVersion}/${this.language}`,
-                'C': uuidv4(), // 매 요청마다 새로운 UUID 생성 (Replay Attack 방지)
+                'C': uuidv4(),
                 'Accept-Language': this.language,
                 'User-Agent': `KT/${this.appVersion} An/${this.androidVersion} ${this.language}`,
                 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
                 'Host': 'auth.kakao.com'
             };
 
-            // 4. [수정] Request Body (os: undefined 문제 해결)
+            // 4. Request Body 파라미터 구성
             const params = {
                 email: email,
                 password: encryptedPassword,
                 device_uuid: deviceUuid,
-                os: "android",                // ✅ Fixed: hwInfo.os 대신 직접 할당
+                os: "android",                // ✅ Fixed: undefined 방지
                 model: this.model,
                 model_name: this.model, 
-                v: this.androidVersion,       // osVersion과 매칭
-                app_ver: this.appVersion,     // appVersion과 매칭
+                v: this.androidVersion,
+                app_ver: this.appVersion,
                 uvc3: uvc3,
                 item_type: "J",
                 lang: this.language,
