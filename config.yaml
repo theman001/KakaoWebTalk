@@ -4,14 +4,14 @@ server:
   mode: "production"
 
 kakao:
-  appVersion: "3.4.2"
+  # 분석된 libtalkand_aes_v11.3.0.so 버전에 맞춰 수정
+  appVersion: "11.3.0" 
   protocolVersion: "1.1"
-  # deviceUuid: "your-device-uuid"
+  # deviceUuid는 실제 기기 고유값(예: 32자리 hex)을 넣는 것이 가장 안전합니다.
+  deviceUuid: "a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2"
 
 database:
   user: "ADMIN"
   password: "KakaoWebDB0149"
-  # Wallet의 tnsnames.ora에서 확인한 서비스 이름으로 수정 (예: kakaowebdb_high)
   connectString: "kakaowebdb_high"
   walletPath: "/KakaoWebTalk/server/lib/wallet"
-  walletLocation: config.database.walletPath
