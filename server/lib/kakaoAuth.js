@@ -6,91 +6,74 @@ class KakaoAuth {
     constructor(config) {
         this.config = config;
         this.authHost = "https://auth.kakao.com";
-        this.appVersion = '25.11.2';
-        this.androidVersion = '14';
-        this.language = 'ko';
+        this.appVersion = "25.11.2";
+        this.androidVersion = "14";
+        this.language = "ko";
         this.model = "SM-G991N";
     }
 
-    logDetailedRequest(url, headers, rawPassword, encryptedPassword, params) {
-        console.log("┌──────── [KAKAO AUTH REQUEST START] ────────┐");
-        console.log(`│ [URL]    : ${url}`);
-        console.log(`│ [METHOD] : POST`);
-        console.log("├────────────────────────────────────────┤");
-        console.log("│ [HEADERS]");
-        Object.entries(headers).forEach(([key, val]) => {
-            console.log(`│   ${key.padEnd(15)} : ${val}`);
-        });
-        console.log("├────────────────────────────────────────┤");
-        console.log("│ [PASSWORD VALIDATION]");
-        console.log(`│   Plaintext       : ${rawPassword}`);
-        console.log(`│   Encrypted (AES) : ${encryptedPassword}`);
-        console.log("├────────────────────────────────────────┤");
-        console.log("│ [REQUEST BODY]");
-        Object.entries(params).forEach(([key, val]) => {
-            const displayVal = (key === 'uvc3' || key === 'password') && val.length > 50 
-                ? `${val.substring(0, 50)}... [Total: ${val.length} chars]`
-                : val;
-            console.log(`│   ${key.padEnd(15)} : ${displayVal}`);
-        });
-        console.log("└──────── [KAKAO AUTH REQUEST END] ────────┘");
-    }
-
+    /**
+     * 카카오톡 로그인 실행
+     */
     async login(email, password) {
         try {
+            // 1. 보안 식별자 및 암호화 데이터 생성
             const deviceUuid = this.config.kakao.deviceUuid || kakaoCrypto.generateDeviceUuid(this.model);
             const encryptedPassword = kakaoCrypto.encryptPassword(password);
             
-            // 분석 1순위: uvc3 내부 하드웨어 정보 정밀화
+            // 2. [중요] uvc3 내부용 하드웨어 정보 (CamelCase 적용 및 필드 정밀화)
+            // 서버 복호화 시 대조 데이터로 사용됨
             const hwInfo = {
-                os_name: "android",
-                os_version: "14",           // 로그의 'v' 값과 일치해야 함
-                model: this.model,          // "SM-G991N"
-                app_version: this.appVersion, // "25.11.2"
-                device_uuid: deviceUuid,
-                device_name: "Galaxy S21",
-                language: "ko",             // 추가 권장 (로그의 lang과 매칭)
-                screen_size: "2400x1080",
-                item_type: "J",
-                // cpuName, batteryPct 등은 서버에서 필수값이 아닐 확률이 높으나, 
-                // 키 이름을 소문자+언더바(snake_case)로 유지하는 것이 안전합니다.
-                cpu_name: "exynos2100",
-                battery_level: 95
+                osName: "android",
+                osVersion: this.androidVersion,
+                model: this.model,
+                appVersion: this.appVersion,
+                deviceUuid: deviceUuid,
+                deviceName: "Galaxy S21",
+                language: this.language,
+                screenSize: "2400x1080",
+                itemType: "J",
+                cpuName: "exynos2100",
+                batteryLevel: 95
             };
 
             const uvc3 = kakaoCrypto.createUvc3(hwInfo);
 
+            // 3. HTTP Headers 설정 (A, C 헤더 및 User-Agent)
             const headers = {
                 'A': `android/${this.appVersion}/${this.language}`,
-                'C': uuidv4(),
+                'C': uuidv4(), // 매 요청마다 새로운 UUID 생성 (Replay Attack 방지)
                 'Accept-Language': this.language,
                 'User-Agent': `KT/${this.appVersion} An/${this.androidVersion} ${this.language}`,
                 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
                 'Host': 'auth.kakao.com'
             };
 
+            // 4. [수정] Request Body (os: undefined 문제 해결)
             const params = {
                 email: email,
                 password: encryptedPassword,
                 device_uuid: deviceUuid,
-                os: hwInfo.os,
-                model: hwInfo.model,
-                model_name: hwInfo.model, 
-                v: this.androidVersion,
-                app_ver: this.appVersion,
+                os: "android",                // ✅ Fixed: hwInfo.os 대신 직접 할당
+                model: this.model,
+                model_name: this.model, 
+                v: this.androidVersion,       // osVersion과 매칭
+                app_ver: this.appVersion,     // appVersion과 매칭
                 uvc3: uvc3,
-                item_type: hwInfo.item_type,
+                item_type: "J",
                 lang: this.language,
-                device_name: hwInfo.device_name,
+                device_name: "Galaxy S21",
                 forced: "true",
                 permanent: "true",       
                 format: "json"
             };
 
-            const targetUrl = `${this.authHost}/android/account/login.json`;
-            this.logDetailedRequest(targetUrl, headers, password, encryptedPassword, params);
+            // 상세 요청 로그 출력 (디버깅용)
+            this.logDetailedRequest(params, headers);
 
-            const response = await axios.post(targetUrl, 
+            // 5. POST 요청 실행
+            const response = await axios.post(
+                `${this.authHost}/android/account/login.json`, 
                 new URLSearchParams(params).toString(),
                 { headers: headers }
             );
@@ -105,16 +88,29 @@ class KakaoAuth {
             return response.data;
 
         } catch (error) {
-            console.error("┌──────── [KAKAO AUTH ERROR INFO] ────────┐");
-            if (error.response) {
-                console.error(`│ STATUS : ${error.response.status}`);
-                console.error(`│ DATA   : ${JSON.stringify(error.response.data)}`);
-            } else {
-                console.error(`│ MESSAGE: ${error.message}`);
-            }
-            console.error("└────────────────────────────────────────┘");
+            this.handleError(error);
             throw error;
         }
+    }
+
+    logDetailedRequest(params, headers) {
+        console.log("┌──────── [KAKAO AUTH REQUEST START] ────────┐");
+        console.log(`│ [URL]     : ${this.authHost}/android/account/login.json`);
+        console.log(`│ [HEADERS] : A=${headers['A']}, C=${headers['C']}`);
+        console.log(`│ [BODY]    : email=${params.email}, os=${params.os}, v=${params.v}`);
+        console.log(`│ [UVC3]    : ${params.uvc3.substring(0, 50)}...`);
+        console.log("└────────────────────────────────────────────┘");
+    }
+
+    handleError(error) {
+        console.error("┌──────── [KAKAO AUTH ERROR INFO] ────────┐");
+        if (error.response) {
+            console.error(`│ STATUS : ${error.response.status}`);
+            console.error(`│ DATA   : ${JSON.stringify(error.response.data)}`);
+        } else {
+            console.error(`│ MESSAGE: ${error.message}`);
+        }
+        console.error("└────────────────────────────────────────┘");
     }
 }
 
