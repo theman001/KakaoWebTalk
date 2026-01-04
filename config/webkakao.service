@@ -9,6 +9,9 @@ ExecStart=/usr/bin/node index.js
 Restart=always
 # 보안을 위해 실제 사용자로 실행 권한 부여
 User=ubuntu
+# Node.js 20의 OpenSSL 호환성 플래그 주입
+ExecStart=/usr/bin/node --openssl-legacy-provider index.js
+Restart=always
 Environment=NODE_ENV=production
 
 [Install]
