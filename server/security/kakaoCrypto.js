@@ -15,24 +15,24 @@ const KakaoCrypto = {
      */
     encryptPassword(password) {
         try {
-            // 1. IV 생성: 키의 첫 16바이트 (UTF-8)
-            const iv = Buffer.from(this.PW_ENC_KEY.substring(0, 16), 'utf8');
-
-            // 2. KEY 생성: 32바이트 배열 생성 후 키 복사 (NULL 패딩 자동 적용)
+            console.log("[DEBUG] encryptPassword 호출됨 - AES-256 로직 진입"); // 반영 확인용
+            
             const keyBuffer = Buffer.alloc(32, 0); 
             const keyData = Buffer.from(this.PW_ENC_KEY, 'utf8');
             keyData.copy(keyBuffer, 0);
 
-            // 3. 암호화 수행 (PKCS7 패딩 포함)
+            const iv = Buffer.from(this.PW_ENC_KEY.substring(0, 16), 'utf8');
+
             const cipher = crypto.createCipheriv('aes-256-cbc', keyBuffer, iv);
             cipher.setAutoPadding(true);
             
             let encrypted = cipher.update(password, 'utf8', 'base64');
             encrypted += cipher.final('base64');
             
+            console.log("[DEBUG] 결과 길이:", encrypted.length); // 44자 이상이어야 함
             return encrypted;
         } catch (error) {
-            console.error("[Crypto Error] Password Encryption Failed:", error);
+            console.error("[Crypto Error]:", error);
             return null;
         }
     },
