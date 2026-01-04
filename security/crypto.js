@@ -15,8 +15,6 @@ export class CryptoService {
          const tag = cipher.getAuthTag().toString("base64");
          
          return `${iv}.${enc}.${tag}`;
-
-        return "MOCK_ENCRYPTED_" + Buffer.from(JSON.stringify(payload)).toString("base64");
     }
 
     decrypt(token) {
@@ -26,8 +24,5 @@ export class CryptoService {
          let dec = decipher.update(enc,"base64","utf8");
          dec += decipher.final("utf8");
          return JSON.parse(dec);
-
-        const raw = token.replace("MOCK_ENCRYPTED_", "");
-        return JSON.parse(Buffer.from(raw, "base64").toString("utf8"));
     }
 }
