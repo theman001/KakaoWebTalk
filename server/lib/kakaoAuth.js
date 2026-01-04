@@ -1,17 +1,28 @@
 const axios = require('axios');
+const { URLSearchParams } = require('url');
 
 class KakaoAuth {
     constructor(config) {
         this.config = config;
-        // 1. 인증 전용 axios 인스턴스 생성 (권장)
+        
+        // 1. 분석된 정보를 바탕으로 인스턴스 설정
         this.client = axios.create({
-            baseURL: "https://auth.kakao.com",
-            timeout: 5000
+            // ZzngHostUtil 분석 결과에 따른 API 베이스 URL
+            baseURL: "https://kapi.kakao.com", 
+            headers: {
+                // JdDapiHeaderInterceptor에서 추출된 필수 Admin Key
+                'Authorization': 'KakaoAK d0ede325b798076919f0012eba6dab8b',
+                // 보안 및 앱 식별을 위한 KA 헤더
+                'KA': 'sdk/1.0.0 os/android/13 lang/ko_KR res/1080x2277 device/SM-S908N origin/unknown',
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                'User-Agent': 'KakaoTalk/10.4.5 (Android/13; light; ko)'
+            },
+            timeout: 10000
         });
 
-        this.authUrl = "/login/talk_v2"; // baseURL을 설정했으므로 경로만 작성
+        // JdDapi 키워드 기반 추정 경로 (최종 경로는 JADX @POST 검색 결과 반영 필요)
+        this.authUrl = "/v1/dapi/login/talk";
 
-        // 2. 인터셉터 설정을 생성자 내부로 이동
         this.client.interceptors.request.use(request => {
             console.log('----- [보내는 패킷 정보] -----');
             console.log('URL:', request.baseURL + request.url);
@@ -24,10 +35,9 @@ class KakaoAuth {
 
     async login(email, password) {
         try {
-            // 요청 데이터 구성
             const params = new URLSearchParams();
             params.append('email', email);
-            params.append('password', password);
+            params.append('password', password); // TODO: 암호화 필드(p) 확인 시 수정 필요
             params.append('device_uuid', this.config.kakao?.deviceUuid || "default-uuid");
             params.append('os_version', "13");
             params.append('model', "SM-S908N");
@@ -35,17 +45,9 @@ class KakaoAuth {
             params.append('os', "android");
             params.append('net_type', "WIFI");
 
-            const headers = {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'User-Agent': 'KakaoTalk/10.4.5 (Android/13; light; ko)',
-                'A': 'android/10.4.5/ko',
-                'Host': 'auth.kakao.com'
-            };
+            console.log(`[Auth] 카카오 API 서버로 인증 시도 중: ${email}`);
 
-            console.log(`[Auth] 카카오 서버로 인증 시도 중: ${email}`);
-
-            // this.client 인스턴스를 사용하여 요청
-            const response = await this.client.post(this.authUrl, params.toString(), { headers });
+            const response = await this.client.post(this.authUrl, params.toString());
 
             if (response.data && response.data.status === 0) {
                 console.log(">>> 카카오 인증 성공!");
@@ -54,7 +56,6 @@ class KakaoAuth {
                     session: response.data
                 };
             } else {
-                console.warn("[Auth] 로그인 실패:", response.data.error_message);
                 return {
                     success: false,
                     message: response.data.error_message || "응답 데이터 오류"
