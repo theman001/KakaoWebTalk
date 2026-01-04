@@ -7,6 +7,16 @@ class KakaoAuth {
         this.authUrl = "https://auth.kakao.com/login/talk_v2"; 
     }
 
+    // axios를 사용 중인 경우
+    axios.interceptors.request.use(request => {
+      console.log('----- [보내는 패킷 정보] -----');
+      console.log('URL:', request.url);
+      console.log('Headers:', request.headers);
+      console.log('Body:', request.data);
+      console.log('---------------------------');
+      return request;
+    });
+
     async login(email, password) {
         try {
             // 1. 요청 본문 데이터 (x-www-form-urlencoded 형식 강제)
