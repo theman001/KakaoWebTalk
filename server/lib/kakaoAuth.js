@@ -38,7 +38,7 @@ class KakaoAuth {
                 'forced': 'false',
                 // [중요] uvc3가 비어있으면 차단될 확률이 높음. 
                 // 일단 null 대신 매우 짧은 더미값이나 생략을 시도해볼 수 있음.
-                'uvc3': '' 
+                'uvc3': '0000000000000000000000000000000000000000000000000000000000000000' // 64자 더미
             };
 
             const params = new URLSearchParams(payload);
