@@ -11,16 +11,18 @@ class KakaoAuth {
 
         const toBuf = (hex) => Buffer.from(hex.padStart(16, '0'), 'hex').reverse();
 
-        // [Layer 1] Native AES-256-CBC Key (Ghidra 추출값 유지)
+        // [Layer 1] Native AES-256-CBC Key (Ghidra 스택 순서 정밀 재배치)
         this.nativeKey = Buffer.concat([
-            toBuf("2add44ed36b417d3"), toBuf("c039ea22a95bc647"),
-            toBuf("f4275c2db340fb17"), toBuf("c45af149cf51dd3a")
+            toBuf("2add44ed36b417d3"), // local_80
+            toBuf("c039ea22a95bc647"), // uStack_78
+            toBuf("f4275c2db340fb17"), // uStack_70
+            toBuf("c45af149cf51dd3a")  // uStack_68
         ]);
 
-        // [변경] Native IV를 0으로 설정 (추출된 값이 IV가 아닐 가능성 대비)
-        this.nativeIv = Buffer.alloc(16, 0); 
+        // IV는 0으로 초기화하여 시도 (가장 표준적인 접근)
+        this.nativeIv = Buffer.alloc(16, 0);
 
-        // [Layer 2] AbuseDetect AES-128-CBC (고정 상수)
+        // [Layer 2] AbuseDetect AES-128-CBC
         this.abuseKey = Buffer.from([254, 176, 46, 7, 253, 116, 58, 92, 230, 120, 41, 192, 101, 23, 51, 149]);
         this.abuseIv = Buffer.from([70, 86, 58, 241, 252, 195, 173, 90, 228, 157, 174, 180, 19, 61, 251, 11]);
         
@@ -35,25 +37,25 @@ class KakaoAuth {
     }
 
     generateUvc3() {
-        // [보정] 실제 앱 패킷의 JSON 필드 구성 재배치
+        // [구조] 필드 순서와 공백 없는 JSON
         const deviceData = {
             "os": "android",
             "model": "SM-S908N",
+            "android_id": this.androidId,
             "os_version": "13",
-            "talk_version": this.appVersion,
-            "android_id": this.androidId
+            "talk_version": this.appVersion
         };
         const jsonStr = JSON.stringify(deviceData);
 
         // Layer 1 (Native AES-256-CBC)
         const cipher1 = crypto.createCipheriv('aes-256-cbc', this.nativeKey, this.nativeIv);
-        // 결과물을 Base64가 아닌 Buffer(Binary)로 추출하여 다음 레이어로 전달
-        const l1Binary = Buffer.concat([cipher1.update(jsonStr, 'utf8'), cipher1.final()]);
-        const l1Base64 = l1Binary.toString('base64');
+        // l1Result는 Raw Buffer입니다.
+        const l1Result = Buffer.concat([cipher1.update(jsonStr, 'utf8'), cipher1.final()]);
 
         // Layer 2 (AbuseDetect AES-128-CBC)
         const cipher2 = crypto.createCipheriv('aes-128-cbc', this.abuseKey, this.abuseIv);
-        let l2 = cipher2.update(l1Base64, 'utf8', 'base64');
+        // [변경] l1Result(Buffer)를 그대로 Layer 2의 입력으로 사용
+        let l2 = cipher2.update(l1Result, null, 'base64');
         l2 += cipher2.final('base64');
 
         return l2;
@@ -84,14 +86,14 @@ class KakaoAuth {
                 'uvc3': uvc3
             });
 
-            console.log("---- [Login Attempt with Native IV=0 & Field Adjust] ----");
+            console.log("---- [Login Attempt: Binary Chaining Mode] ----");
             const response = await axios.post(url, payload.toString(), { headers });
             
             console.log("[Server Result]:", response.data);
             return response.data;
         } catch (error) {
-            console.error("[Login Error]:", error.response ? error.response.data : error.message);
-            return { status: -500, message: "로그인 요청 중 오류 발생" };
+            console.error("[Login Request Error]:", error.message);
+            return { status: -500, message: "Network Error" };
         }
     }
 }
