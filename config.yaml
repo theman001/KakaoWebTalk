@@ -6,7 +6,7 @@ server:
 kakao:
   appVersion: "3.4.2"
   protocolVersion: "1.1"
-  deviceUuid: "your-device-uuid"
+  # deviceUuid: "your-device-uuid"
 
 database:
   user: "ADMIN"
