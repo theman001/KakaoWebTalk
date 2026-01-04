@@ -1,1 +1,15 @@
-.
+[Unit]
+Description=KakaoWebTalk Node.js Server
+After=network.target
+
+[Service]
+# 실행 경로 설정 (매우 중요)
+WorkingDirectory=/KakaoWebTalk/server
+ExecStart=/usr/bin/node index.js
+Restart=always
+# 보안을 위해 실제 사용자로 실행 권한 부여
+User=ubuntu
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
