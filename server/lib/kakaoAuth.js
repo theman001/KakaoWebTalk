@@ -58,6 +58,65 @@ class KakaoAuth {
 
             const uvc3 = kakaoCrypto.createUvc3(hwInfo);
 
+            // UVC3 복호화 검증 (디버깅용)
+            if (uvc3) {
+                const decryptedHwInfo = kakaoCrypto.decryptUvc3(uvc3);
+                if (decryptedHwInfo) {
+                    console.log("┌──────── [UVC3 DECRYPTION VERIFICATION] ────────┐");
+                    console.log("│ ✅ UVC3 복호화 성공");
+                    console.log("├────────────────────────────────────────┤");
+                    console.log("│ [Original hwInfo]");
+                    console.log(`│   Fields count: ${Object.keys(hwInfo).length}`);
+                    console.log("├────────────────────────────────────────┤");
+                    console.log("│ [Decrypted hwInfo]");
+                    console.log(`│   Fields count: ${Object.keys(decryptedHwInfo).length}`);
+                    console.log("├────────────────────────────────────────┤");
+                    
+                    // 필드 비교
+                    const originalKeys = Object.keys(hwInfo).sort();
+                    const decryptedKeys = Object.keys(decryptedHwInfo).sort();
+                    const missingKeys = originalKeys.filter(k => !decryptedKeys.includes(k));
+                    const extraKeys = decryptedKeys.filter(k => !originalKeys.includes(k));
+                    
+                    if (missingKeys.length > 0) {
+                        console.log(`│ ⚠️  Missing keys in decrypted: ${missingKeys.join(', ')}`);
+                    }
+                    if (extraKeys.length > 0) {
+                        console.log(`│ ⚠️  Extra keys in decrypted: ${extraKeys.join(', ')}`);
+                    }
+                    
+                    // 값 비교 (주요 필드만)
+                    const keyFields = ['va', 'cpuName', 'batteryPct', 'screenSize', 'network_operator'];
+                    let matchCount = 0;
+                    let mismatchCount = 0;
+                    
+                    keyFields.forEach(key => {
+                        if (hwInfo[key] !== undefined && decryptedHwInfo[key] !== undefined) {
+                            const originalVal = JSON.stringify(hwInfo[key]);
+                            const decryptedVal = JSON.stringify(decryptedHwInfo[key]);
+                            if (originalVal === decryptedVal) {
+                                matchCount++;
+                            } else {
+                                mismatchCount++;
+                                console.log(`│ ❌ Mismatch [${key}]: original=${originalVal}, decrypted=${decryptedVal}`);
+                            }
+                        }
+                    });
+                    
+                    if (matchCount > 0 && mismatchCount === 0) {
+                        console.log(`│ ✅ All checked fields match (${matchCount} fields)`);
+                    } else if (mismatchCount > 0) {
+                        console.log(`│ ⚠️  ${mismatchCount} field(s) mismatch`);
+                    }
+                    
+                    console.log("└────────────────────────────────────────┘");
+                } else {
+                    console.error("[UVC3 Decryption] ❌ 복호화 실패 - UVC3 생성에 문제가 있을 수 있습니다.");
+                }
+            } else {
+                console.error("[UVC3 Creation] ❌ UVC3 생성 실패");
+            }
+
             // 3. HTTP Headers 설정
             const headers = {
                 'A': `android/${this.appVersion}/${this.language}`,
@@ -121,10 +180,21 @@ class KakaoAuth {
     logDetailedRequest(url, params, headers) {
         console.log("┌──────── [KAKAO AUTH REQUEST START] ────────┐");
         console.log(`│ [URL]     : ${url}`);
-        console.log(`│ [HEADERS] : A=${headers['A']}, C=${headers['C']}`);
-        console.log(`│ [BODY]    : email=${params.email}, os=${params.os}, v=${params.v}`);
-        console.log(`│ [UVC3]    : ${params.uvc3.substring(0, 50)}...`);
-        console.log("└────────────────────────────────────────────┘");
+        console.log(`│ [METHOD]  : POST`);
+        console.log("├────────────────────────────────────────┤");
+        console.log("│ [HEADERS]");
+        Object.entries(headers).forEach(([key, val]) => {
+            console.log(`│   ${key.padEnd(15)} : ${val}`);
+        });
+        console.log("├────────────────────────────────────────┤");
+        console.log("│ [BODY PARAMETERS]");
+        Object.entries(params).forEach(([key, val]) => {
+            const displayVal = (key === 'uvc3' || key === 'password') && val && val.length > 50
+                ? `${val.substring(0, 50)}... [Total: ${val.length} chars]`
+                : val;
+            console.log(`│   ${key.padEnd(15)} : ${displayVal}`);
+        });
+        console.log("└────────────────────────────────────────┘");
     }
 
     handleError(error) {

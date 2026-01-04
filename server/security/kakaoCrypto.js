@@ -65,6 +65,45 @@ const KakaoCrypto = {
         // ✅ 수정: 실제 카카오톡 APK 코드 (C66516V.m270999f)와 일치하도록 끝에 공백 추가
         const salt = "dkljleskljfeisflssljeif ";
         return crypto.createHash('sha1').update(model + salt).digest('hex');
+    },
+
+    /**
+     * UVC3 복호화 (디버깅/검증용)
+     * 생성된 UVC3를 복호화하여 원본 hwInfo와 일치하는지 확인
+     * 
+     * @param {string} uvc3Base64 - Base64 인코딩된 UVC3 값
+     * @returns {Object|null} - 복호화된 hwInfo JSON 객체, 실패 시 null
+     */
+    decryptUvc3(uvc3Base64) {
+        try {
+            // Step 1: Base64 디코딩
+            const step1Buffer = Buffer.from(uvc3Base64, 'base64');
+            
+            // Step 2: AES-128-CBC 복호화 (AbuseDetectUtil.m213055g의 역과정)
+            const step2Key = Buffer.from([0xFE, 0xB0, 0x2E, 0x07, 0xFD, 0x74, 0x3A, 0x5C, 0xE6, 0x78, 0x29, 0xC0, 0x65, 0x17, 0x33, 0x95]);
+            const step2Iv = Buffer.from([0x46, 0x56, 0x3A, 0xF1, 0xFC, 0xC3, 0xAD, 0x5A, 0xE4, 0x9D, 0xAE, 0xB4, 0x13, 0x3D, 0xFB, 0x0B]);
+            const decipher2 = crypto.createDecipheriv('aes-128-cbc', step2Key, step2Iv);
+            decipher2.setAutoPadding(true);
+            let decrypted2 = decipher2.update(step1Buffer);
+            decrypted2 = Buffer.concat([decrypted2, decipher2.final()]);
+            
+            // Step 3: TalkHello 복호화 (AES-256-CBC)
+            const talkHelloKey = Buffer.from('3add51cf49f15ac4204b0e3a4315542bd317b436ed44dd2a47c65ba922ea39c0', 'hex');
+            const talkHelloIv = Buffer.from('df2f3c57286470abb46ca0c59ae4aa0a', 'hex');
+            const decipher1 = crypto.createDecipheriv('aes-256-cbc', talkHelloKey, talkHelloIv);
+            decipher1.setAutoPadding(true);
+            let decrypted1 = decipher1.update(decrypted2);
+            decrypted1 = Buffer.concat([decrypted1, decipher1.final()]);
+            
+            // Step 4: JSON 파싱
+            const jsonString = decrypted1.toString('utf8');
+            const hwInfo = JSON.parse(jsonString);
+            
+            return hwInfo;
+        } catch (error) {
+            console.error("[UVC3 Decryption Error]:", error.message);
+            return null;
+        }
     }
 };
 
