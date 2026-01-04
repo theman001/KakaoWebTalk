@@ -43,7 +43,7 @@ const KakaoCrypto = {
             console.error("[Crypto Error]:", error);
             return null;
         }
-    }
+    },
 
     /**
      * UVC3 생성 (2단계 중첩 암호화)
