@@ -43,11 +43,24 @@ class KakaoAuth {
              * 3. 파라미터 구성 (PassCodeLoginRequest 구조 반영)
              * - 분석된 DTO 구조에 따라 'device' 객체 내부에 'uuid'를 넣어야 합니다.
              */
+            const crypto = require('crypto');
+            
+            /**
+             * 카카오 규격에 맞는 UUID 생성 함수
+             * @returns {string} 16자리 hex 문자열 (Android ID 대용)
+             */
+            function generateKakaoUuid() {
+                // 실제 안드로이드 식별자와 유사한 16진수 16자 생성
+                return crypto.randomBytes(8).toString('hex');
+            }
+            
+            // ... 클래스 내부 login 함수 중 ...
             const payload = {
                 email: email,
-                password: password, // 만약 403이 계속되면 이 값을 ChaCha20으로 암호화해야 함
+                password: password,
                 device: {
-                    uuid: this.config.kakao?.deviceUuid || "default-uuid"
+                    // 이전에 사용한 "your-device-uuid"를 제거하고 규격화된 값 사용
+                    uuid: this.config.kakao?.deviceUuid || generateKakaoUuid()
                 }
             };
 
