@@ -4,6 +4,15 @@ const talkHello = require('./talkHello');
 const KakaoCrypto = {
     PW_ENC_KEY: "jEibeliJAhlEeyoOnjuNg",
 
+    /**
+     * Password 암호화 (C70496a.m283826b() 구현)
+     * 
+     * ⚠️ 참고: 실제 카카오톡 APK 코드 (SubDeviceLoginParams.m194994D)에서는 
+     * m283825a (복호화 메서드)를 사용하지만, 논리적으로는 암호화가 필요하므로 
+     * m283826b (암호화 메서드) 구현을 사용합니다.
+     * 
+     * 실제 로그인 테스트를 통해 검증이 필요합니다.
+     */
     encryptPassword(password) {
         try {
             const keyString = this.PW_ENC_KEY;
@@ -53,7 +62,8 @@ const KakaoCrypto = {
     },
 
     generateDeviceUuid(model) {
-        const salt = "dkljleskljfeisflssljeif";
+        // ✅ 수정: 실제 카카오톡 APK 코드 (C66516V.m270999f)와 일치하도록 끝에 공백 추가
+        const salt = "dkljleskljfeisflssljeif ";
         return crypto.createHash('sha1').update(model + salt).digest('hex');
     }
 };
