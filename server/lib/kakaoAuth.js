@@ -1,92 +1,86 @@
-const crypto = require('crypto');
 const axios = require('axios');
-const uvcFactory = require('../security/uvcFactory');
+const talkHello = require('../security/talkHello');
 
+/**
+ * 카카오 계정 인증 및 토큰 획득 클래스
+ */
 class KakaoAuth {
-    constructor(config = {}) {
-        this.email = config.email || "";
-        this.password = config.password || "";
-        this.appVersion = config.kakao?.appVersion || "11.0.5";
-        this.androidId = config.androidId || "7a9b0c1d2e3f4a5b";
-        this.userAgent = `KakaoTalk/${this.appVersion} (Android 13; ko_KR; SM-S908N)`;
+    constructor(config) {
+        this.config = config;
+        // 카카오 인증 서버 기본 설정
+        this.authHost = "https://auth.kakao.com";
+        this.userAgent = `KT/${config.kakao.appVersion} Android/11`;
     }
 
     /**
-     * 비밀번호 암호화 (기존 Java C70496a 로직 대응 필요 시 수정)
-     * 현재는 단순 평문 전송 방지용 스텁입니다.
+     * 카카오 계정 로그인 실행
+     * @param {string} email - 사용자 이메일
+     * @param {string} password - 사용자 비밀번호
      */
-    encryptPassword(password) {
-        // 실제 카카오톡은 RSA 또는 커스텀 암호화를 사용합니다.
-        // 분석된 솔트: "jEibeliJAhlEeyoOnjuNg"
-        return password; 
-    }
-
-    /**
-     * 최종 로그인 프로세스
-     */
-    async login(passedEmail, passedPassword) {
-        const url = "https://auth.kakao.com/android/account/login.json";
-        
-        // 1. device_uuid 생성 (분석된 솔트 포함)
-        const deviceUuid = crypto.createHash('sha1')
-            .update("dkljleskljfeisflssljeif " + this.androidId)
-            .digest('hex');
-        
-        // 2. uvc3 생성을 위한 기기 정보 구성 (APK 보고서 2.2절 기준 필드)
-        const deviceInfoData = {
-            "va": "8.3.5.2",
-            "installReferrer": "google_play",
-            "apkChecksum": "V64/p+X...", // 실제 체크섬 값 필요
-            "cpuName": "snapdragon",
-            "batteryPct": 85,
-            "volume": 7,
-            "totalMemory": 8589934592,
-            "network_operator": "SKT"
-            // uvcFactory에서 정의된 fieldOrder에 따라 자동 정렬됨
-        };
-
+    async login(email, password) {
         try {
-            // 3. 통합 보안 모듈을 통한 uvc3 생성 (Native + Abuse Layer)
-            const uvc3 = uvcFactory.generate(deviceInfoData);
+            console.log(`[KakaoAuth] 로그인 시도 중: ${email}`);
 
-            const headers = {
-                'A': `android/${this.appVersion}/ko`,
-                'C': crypto.randomUUID(),
-                'User-Agent': this.userAgent,
-                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                'Host': 'auth.kakao.com'
+            // 1. 기기 인증 정보(UVC3) 구성 및 암호화
+            const deviceData = {
+                os: "android",
+                model: "SM-G991N", // 임의의 최신 기종 정보
+                item_type: "J",
+                app_ver: this.config.kakao.appVersion,
+                protocol_ver: this.config.kakao.protocolVersion,
+                device_uuid: this.config.kakao.deviceUuid || "generated-uuid-placeholder"
             };
 
-            const payload = new URLSearchParams({
-                'email': passedEmail || this.email,
-                'password': this.encryptPassword(passedPassword || this.password),
-                'device_uuid': deviceUuid,
-                'device_name': 'SM-S908N',
-                'model_name': 'SM-S908N',
-                'permanent': 'true',
-                'forced': 'false',
-                'uvc3': uvc3
-            });
+            // /server/security/talkHello.js 모듈 사용
+            const encryptedUvc3 = talkHello.encrypt(deviceData);
 
-            console.log(`[Login] Attempting login for: ${passedEmail || this.email}`);
-            console.log(`[Login] Generated UVC3: ${uvc3.substring(0, 20)}...`);
+            // 2. 카카오 인증 서버로 POST 요청 (API 규격 준수)
+            const response = await axios.post(`${this.authHost}/login.json`, 
+                new URLSearchParams({
+                    email: email,
+                    password: password,
+                    device_uuid: deviceData.device_uuid,
+                    access_token: "",
+                    v: "android",
+                    os: "11",
+                    model: deviceData.model,
+                    item_type: "J",
+                    app_ver: deviceData.app_ver,
+                    uvc3: encryptedUvc3 // 암호화된 기기 정보 주입
+                }).toString(),
+                {
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'User-Agent': this.userAgent,
+                        'X-VC': encryptedUvc3 // 헤더에도 암호화 값 포함 (필요시)
+                    }
+                }
+            );
 
-            const response = await axios.post(url, payload.toString(), { headers });
-            
-            if (response.data.status === 0) {
-                console.log("[Login] Success: Auth Token acquired.");
+            const data = response.data;
+
+            // 3. 결과 처리
+            if (data.status === 0) {
+                console.log(`[KakaoAuth] 로그인 성공: ${data.userId}`);
+                return {
+                    status: 0,
+                    userId: data.userId,
+                    access_token: data.access_token,
+                    deviceUuid: deviceData.device_uuid
+                };
+            } else if (data.status === -100) {
+                // 추가 인증(기기 등록)이 필요한 경우 등
+                throw new Error("추가 인증 또는 기기 등록이 필요한 계정입니다.");
             } else {
-                console.warn(`[Login] Result: ${response.data.message} (Code: ${response.data.status})`);
+                throw new Error(data.message || "카카오 서버 응답 오류");
             }
 
-            return {
-                ...response.data,
-                deviceUuid: deviceUuid
-            };
-
         } catch (error) {
-            console.error("[Login] Connection Error:", error.message);
-            return { status: -500, message: "서버 연결 실패: " + error.message };
+            if (error.response) {
+                console.error("[KakaoAuth] 서버 응답 에러:", error.response.data);
+                throw new Error(`카카오 서버 에러: ${error.response.data.message || '로그인 실패'}`);
+            }
+            throw error;
         }
     }
 }
