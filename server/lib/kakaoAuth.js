@@ -4,9 +4,10 @@ const axios = require('axios');
 class KakaoAuth {
     constructor(config = {}) {
         this.config = config;
-        this.appVersion = "25.11.2";
+        // 버전을 실제 존재하는 안정화 버전으로 변경 시도
+        this.appVersion = "11.0.5"; 
         this.pwdKeySeed = "jEibeliJAhlEeyoOnjuNg";
-        this.userAgent = `KT/${this.appVersion} An/14 ko`;
+        this.userAgent = `KT/${this.appVersion} An/13 ko`; // Android 13 정도로 설정
         this.androidId = config.androidId || 'default_device_id';
         this.deviceUuid = this.generateDeviceUuid(this.androidId);
     }
