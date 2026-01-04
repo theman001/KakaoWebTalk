@@ -18,29 +18,25 @@ async function initializeDatabase() {
 
         // 2. YAML 파일 파싱
         const config = yaml.load(fs.readFileSync(configPath, 'utf8'));
-
-        // 3. DB 접속 정보 및 Wallet 경로 확정
-        const user = config.database.user;
-        const password = config.database.password;
-        const connectString = config.database.connectString; // "kakaowebdb_high"
-        const walletPath = path.resolve(config.database.walletPath);
+        const dbConfig = config.database; // YAML의 database 섹션 직접 참조
 
         console.log(`[DB] 설정 로드 완료: ${configPath}`);
-        console.log(`[DB] 접속 시도: ${connectString} (Thin Mode)`);
+        console.log(`[DB] 접속 시도: ${dbConfig.connectString} (Thin Mode)`);
 
-        // 4. Oracle DB 연결 (Thin 모드 설정 적용)
+        // 3. Oracle DB 연결 (Thin 모드 설정 적용)
+        // walletPassword를 빈 문자열로 주어 SSO 지갑의 복호화 오류를 방지합니다.
         connection = await oracledb.getConnection({
-            user: user,
-            password: password,
-            connectString: connectString,
-            // Thin 모드에서 tnsnames.ora와 cwallet.sso를 찾기 위한 필수 설정
-            configDir: walletPath,
-            walletLocation: walletPath
+            user: dbConfig.user,
+            password: dbConfig.password,
+            connectString: dbConfig.connectString,
+            configDir: path.resolve(dbConfig.walletPath),
+            walletLocation: path.resolve(dbConfig.walletPath),
+            walletPassword: "" 
         });
 
         console.log("[DB] Oracle Autonomous Database 연결 성공!");
 
-        // 5. 필요한 테이블 생성 (이미 있으면 스킵)
+        // 4. 필요한 테이블 생성 (이미 있으면 스킵)
         const queries = [
             `BEGIN 
                 EXECUTE IMMEDIATE 'CREATE TABLE KAKAOWEB_SESSIONS (
@@ -72,19 +68,24 @@ async function initializeDatabase() {
         await connection.commit();
         console.log("[DB] 스키마 초기화 및 무결성 확인 완료.");
 
+        // Gateway 등에서 재사용할 수 있도록 connection을 반환하지 않고 
+        // 초기화 완료 후 종료합니다. (실제 서비스에서는 Pool을 사용하는 것이 좋으나 현재 구조 유지)
+        return connection;
+
     } catch (err) {
         console.error("[DB] 초기화 실패:");
         console.error(` > 에러 메시지: ${err.message}`);
         
-        // 주요 에러 원인 가이드
         if (err.message.includes("ORA-12154")) {
-            console.error(" > 원인: tnsnames.ora에서 'kakaowebdb_high'를 찾을 수 없습니다.");
-        } else if (err.message.includes("ORA-28759")) {
-            console.error(" > 원인: Wallet 파일(cwallet.sso 등)을 열 수 없습니다. 경로와 권한을 확인하세요.");
+            console.error(" > 원인: tnsnames.ora에서 서비스 이름을 찾을 수 없습니다.");
+        } else if (err.message.includes("ORA-28759") || err.message.includes("NJS-505")) {
+            console.error(" > 원인: Wallet 파일 복호화 실패 또는 경로 오류입니다.");
         }
         
         throw err;
     } finally {
+        // 초기화용 커넥션이므로 작업 후 닫아줍니다. 
+        // (세션 매니저 등은 필요 시 새로운 커넥션을 맺거나 이 커넥션을 유지하도록 설계 변경 가능)
         if (connection) {
             try {
                 await connection.close();
