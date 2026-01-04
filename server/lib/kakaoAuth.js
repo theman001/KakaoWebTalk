@@ -28,25 +28,28 @@ class KakaoAuth {
 
     async login(email, password) {
         try {
+            // [검증용 더미 uvc3 생성 시도] 
+            // 실제 uvc 데이터가 없으니, 일단 빈 값이 아닌 임의의 AES 암호화 블록 크기(32자)를 넣어봅니다.
             const payload = {
                 'email': email,
                 'password': this.encryptPassword(password),
                 'device_uuid': this.deviceUuid,
-                'device_name': 'android', // 모델명 대신 단순화
+                'device_name': 'SM-S908N',
                 'model_name': 'SM-S908N',
                 'permanent': 'true',
-                'forced': 'false'
-                // 'uvc3'를 아예 전송하지 않음 (Legacy 호환성 테스트)
+                'forced': 'false',
+                'uvc3': '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef' // 더미 64자
             };
-    
+
             const params = new URLSearchParams(payload);
             const headers = {
                 'A': `android/${this.appVersion}/ko`,
-                // 'C' 헤더(UUID)를 제거하거나 형식을 바꿈 (필요 시)
-                'User-Agent': `KakaoTalk ${this.appVersion} An/13 ko`, // UA 형식 변경
-                'Accept-Language': 'ko',
+                'C': crypto.randomUUID(), // C 헤더 복구
+                'User-Agent': `KakaoTalk/${this.appVersion} (Android 13; ko_KR; SM-S908N)`, // 더 정교한 UA
+                'Accept-Language': 'ko-KR',
                 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                'Host': 'auth.kakao.com'
+                'Host': 'auth.kakao.com',
+                'Connection': 'Keep-Alive'
             };
 
             console.log("[Request Headers]:", headers);
