@@ -26,14 +26,33 @@ try {
     process.exit(1);
 }
 
-// 3. 미들웨어 및 정적 파일 설정
+// 3. 미들웨어 설정
 app.use(express.json());
-app.use(express.static(path.join(__dirname, '../public')));
 
-// 4. 라우팅
-app.get('/', (req, res) => res.redirect('/login'));
-app.get('/login', (req, res) => res.sendFile(path.join(__dirname, '../public/login.html')));
-app.get('/chat', (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
+// [중요] 확장자(.html) 없이도 파일을 찾을 수 있도록 설정
+app.use(express.static(path.join(__dirname, '../public'), {
+    extensions: ['html'] 
+}));
+
+/**
+ * 4. 라우팅 로직 (Clean URI & Redirect)
+ */
+
+// 루트(/) 접속 시 로그인 페이지로 강제 이동
+app.get('/', (req, res) => {
+    res.redirect('/login');
+});
+
+// /login 접속 시 login.html 서빙
+app.get('/login', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/login.html'));
+});
+
+// /chat 접속 시 index.html 서빙
+app.get('/chat', (req, res) => {
+    // 실제 파일은 index.html이지만 브라우저 주소창에는 /chat으로 표시됨
+    res.sendFile(path.join(__dirname, '../public/index.html'));
+});
 
 /**
  * 5. 서버 가동 로직 (순서 변경: HTTP 우선)
