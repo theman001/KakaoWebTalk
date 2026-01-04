@@ -3,36 +3,44 @@ const fs = require('fs');
 const path = require('path');
 const yaml = require('js-yaml');
 
+/**
+ * 프로젝트 최상단 config.yaml을 참조하여 Oracle Cloud DB(Thin 모드) 초기화
+ */
 async function initializeDatabase() {
     let connection;
     try {
-        // 1. 설정 파일 로드
+        // 1. 최상단 config.yaml 경로 설정 (server/lib/ 기준 ../../)
         const configPath = path.resolve(__dirname, '../../config.yaml');
-        const config = yaml.load(fs.readFileSync(configPath, 'utf8'));
-
-        // 2. Wallet 및 TNS 경로 설정 (절대 경로 확정)
-        const walletPath = path.resolve(config.database.walletPath);
         
-        // Thin 모드 필수 설정: tnsnames.ora가 있는 디렉토리를 configDir로 지정
-        // 별도의 라이브러리 설치 없이 이 경로의 설정파일을 읽습니다.
-        if (!fs.existsSync(path.join(walletPath, 'tnsnames.ora'))) {
-            throw new Error(`Wallet 경로에 tnsnames.ora가 없습니다: ${walletPath}`);
+        if (!fs.existsSync(configPath)) {
+            throw new Error(`설정 파일을 찾을 수 없습니다: ${configPath}`);
         }
 
-        console.log(`[DB] Thin 모드 접속 시도... (Wallet: ${walletPath})`);
+        // 2. YAML 파일 파싱
+        const config = yaml.load(fs.readFileSync(configPath, 'utf8'));
 
-        // 3. Oracle DB 연결
+        // 3. DB 접속 정보 및 Wallet 경로 확정
+        const user = config.database.user;
+        const password = config.database.password;
+        const connectString = config.database.connectString; // "kakaowebdb_high"
+        const walletPath = path.resolve(config.database.walletPath);
+
+        console.log(`[DB] 설정 로드 완료: ${configPath}`);
+        console.log(`[DB] 접속 시도: ${connectString} (Thin Mode)`);
+
+        // 4. Oracle DB 연결 (Thin 모드 설정 적용)
         connection = await oracledb.getConnection({
-            user: config.database.user,
-            password: config.database.password,
-            connectString: config.database.connectString, // e.g., "kakaowebdb_high"
-            configDir: walletPath, // tnsnames.ora 위치
-            walletLocation: walletPath // cwallet.sso 위치
+            user: user,
+            password: password,
+            connectString: connectString,
+            // Thin 모드에서 tnsnames.ora와 cwallet.sso를 찾기 위한 필수 설정
+            configDir: walletPath,
+            walletLocation: walletPath
         });
 
-        console.log("[DB] Oracle Database 연결 성공!");
+        console.log("[DB] Oracle Autonomous Database 연결 성공!");
 
-        // 4. 테이블 초기화 (스키마 생성)
+        // 5. 필요한 테이블 생성 (이미 있으면 스킵)
         const queries = [
             `BEGIN 
                 EXECUTE IMMEDIATE 'CREATE TABLE KAKAOWEB_SESSIONS (
@@ -60,15 +68,29 @@ async function initializeDatabase() {
         for (let sql of queries) {
             await connection.execute(sql);
         }
+        
         await connection.commit();
-        console.log("[DB] 스키마 확인 및 초기화 완료.");
+        console.log("[DB] 스키마 초기화 및 무결성 확인 완료.");
 
     } catch (err) {
-        console.error("[DB] 초기화 실패:", err.message);
+        console.error("[DB] 초기화 실패:");
+        console.error(` > 에러 메시지: ${err.message}`);
+        
+        // 주요 에러 원인 가이드
+        if (err.message.includes("ORA-12154")) {
+            console.error(" > 원인: tnsnames.ora에서 'kakaowebdb_high'를 찾을 수 없습니다.");
+        } else if (err.message.includes("ORA-28759")) {
+            console.error(" > 원인: Wallet 파일(cwallet.sso 등)을 열 수 없습니다. 경로와 권한을 확인하세요.");
+        }
+        
         throw err;
     } finally {
         if (connection) {
-            try { await connection.close(); } catch (e) {}
+            try {
+                await connection.close();
+            } catch (e) {
+                console.error("[DB] 연결 종료 중 오류:", e.message);
+            }
         }
     }
 }
