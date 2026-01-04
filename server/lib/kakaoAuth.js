@@ -3,23 +3,28 @@ const axios = require('axios');
 class KakaoAuth {
     constructor(config) {
         this.config = config;
-        // 디버깅으로 확인된 실제 모바일 인증 엔드포인트
-        this.authUrl = "https://auth.kakao.com/login/talk_v2"; 
-    }
+        // 1. 인증 전용 axios 인스턴스 생성 (권장)
+        this.client = axios.create({
+            baseURL: "https://auth.kakao.com",
+            timeout: 5000
+        });
 
-    // axios를 사용 중인 경우
-    axios.interceptors.request.use(request => {
-      console.log('----- [보내는 패킷 정보] -----');
-      console.log('URL:', request.url);
-      console.log('Headers:', request.headers);
-      console.log('Body:', request.data);
-      console.log('---------------------------');
-      return request;
-    });
+        this.authUrl = "/login/talk_v2"; // baseURL을 설정했으므로 경로만 작성
+
+        // 2. 인터셉터 설정을 생성자 내부로 이동
+        this.client.interceptors.request.use(request => {
+            console.log('----- [보내는 패킷 정보] -----');
+            console.log('URL:', request.baseURL + request.url);
+            console.log('Headers:', JSON.stringify(request.headers, null, 2));
+            console.log('Body:', request.data);
+            console.log('---------------------------');
+            return request;
+        });
+    }
 
     async login(email, password) {
         try {
-            // 1. 요청 본문 데이터 (x-www-form-urlencoded 형식 강제)
+            // 요청 데이터 구성
             const params = new URLSearchParams();
             params.append('email', email);
             params.append('password', password);
@@ -30,7 +35,6 @@ class KakaoAuth {
             params.append('os', "android");
             params.append('net_type', "WIFI");
 
-            // 2. 헤더 설정 (정상 클라이언트 위장)
             const headers = {
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'User-Agent': 'KakaoTalk/10.4.5 (Android/13; light; ko)',
@@ -38,15 +42,16 @@ class KakaoAuth {
                 'Host': 'auth.kakao.com'
             };
 
-            console.log(`[Auth] 카카오 서버(${this.authUrl})로 인증 시도 중: ${email}`);
+            console.log(`[Auth] 카카오 서버로 인증 시도 중: ${email}`);
 
-            const response = await axios.post(this.authUrl, params.toString(), { headers });
+            // this.client 인스턴스를 사용하여 요청
+            const response = await this.client.post(this.authUrl, params.toString(), { headers });
 
             if (response.data && response.data.status === 0) {
                 console.log(">>> 카카오 인증 성공!");
                 return {
                     success: true,
-                    session: response.data // access_token, session_key 포함
+                    session: response.data
                 };
             } else {
                 console.warn("[Auth] 로그인 실패:", response.data.error_message);
@@ -58,11 +63,9 @@ class KakaoAuth {
         } catch (error) {
             console.error("---------- [Kakao API Debug] ----------");
             if (error.response) {
-                // 카카오 서버가 응답은 줬지만 에러인 경우 (400, 401, 404 등)
                 console.error("Status:", error.response.status);
                 console.error("Data:", JSON.stringify(error.response.data, null, 2));
             } else {
-                // 네트워크 연결 자체가 안 된 경우 (Timeout, DNS 등)
                 console.error("Error Message:", error.message);
             }
             console.error("---------------------------------------");
