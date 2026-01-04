@@ -52,7 +52,7 @@ class KakaoAuth {
              * - 실패 시 p로 교체하여 테스트하십시오.
              */
             params.append('email', email);
-            params.append('password', password); 
+            params.append('p', password); // 'password' 대신 'p' 사용
             
             // 기기 및 환경 정보 (APK 내부 로직 기반)
             params.append('device_uuid', this.config.kakao?.deviceUuid || "default-uuid");
