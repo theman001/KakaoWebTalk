@@ -1,1 +1,23 @@
-.
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    const socket = io();
+    const sessionId = localStorage.getItem('kakao_session');
+
+    // 1. 로컬에 저장된 세션이 아예 없으면 로그인으로 이동
+    if (!sessionId) {
+        window.location.href = '/login';
+    } else {
+        // 2. 세션이 있다면 서버에 유효한지 확인 요청
+        socket.emit('auth:restore', sessionId);
+    }
+
+    // 3. 서버에서 세션이 무효하다고 판단하면(auth:fail) 로그인으로 이동
+    socket.on('auth:fail', () => {
+        localStorage.removeItem('kakao_session');
+        window.location.href = '/login';
+    });
+    
+    socket.on('auth:required', () => {
+        window.location.href = '/login';
+    });
+</script>
