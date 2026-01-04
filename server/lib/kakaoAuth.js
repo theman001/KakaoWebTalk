@@ -5,31 +5,31 @@ const talkHello = require('../security/talkHello');
 class KakaoAuth {
     constructor(config) {
         this.config = config;
-        this.authHost = "https://auth.kakao.com";
-        // 분석 결과에 따른 하드코딩된 버전 정보 (v25.11.2)
+        this.authHost = "https://kauth.kakao.com";
         this.appVersion = '25.11.2';
         this.androidVersion = '14';
         this.language = 'ko';
     }
 
     /**
-     * 분석된 규격에 따른 필수 헤더 생성
+     * [LOGGING] 요청 데이터 시각화 도구
      */
-    generateHeaders() {
-        return {
-            'A': `android/${this.appVersion}/${this.language}`,
-            'C': uuidv4(), // 매 요청마다 새로운 UUID 생성
-            'Accept-Language': this.language,
-            'User-Agent': `KT/${this.appVersion} An/${this.androidVersion} ${this.language}`,
-            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-            'Host': 'auth.kakao.com'
-        };
+    logRequest(url, headers, params) {
+        console.log("┌───────────────── [KAKAO OUTGOING REQUEST] ─────────────────┐");
+        console.log(`│ URL: ${url}`);
+        console.log(`│ Method: POST`);
+        console.log(`│ Headers: ${JSON.stringify(headers, null, 2).replace(/\n/g, '\n│ ')}`);
+        
+        // 비밀번호 마스킹 처리 후 바디 출력
+        const maskedParams = new URLSearchParams(params);
+        if (maskedParams.has('password')) maskedParams.set('password', '********');
+        
+        console.log(`│ Body: ${maskedParams.toString()}`);
+        console.log("└────────────────────────────────────────────────────────────┘");
     }
 
     async login(email, password) {
         try {
-            console.log(`[KakaoAuth] 로그인 시도 (v${this.appVersion}): ${email}`);
-
             const deviceData = {
                 os: "android",
                 model: "SM-G991N",
@@ -39,50 +39,63 @@ class KakaoAuth {
                 device_uuid: this.config.kakao.deviceUuid
             };
 
-            // 기존 분석된 AES-256-CBC 로직으로 UVC3 생성
             const encryptedUvc3 = talkHello.encrypt(deviceData);
+            const headers = {
+                'A': `android/${this.appVersion}/${this.language}`,
+                'C': uuidv4(),
+                'Accept-Language': this.language,
+                'User-Agent': `KT/${this.appVersion} An/${this.androidVersion} ${this.language}`,
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                'Host': 'kauth.kakao.com'
+            };
 
-            const params = new URLSearchParams({
+            const params = {
                 email: email,
                 password: password,
                 device_uuid: deviceData.device_uuid,
                 os: deviceData.os,
-                v: this.androidVersion,
                 model: deviceData.model,
+                v: this.androidVersion,
                 app_ver: deviceData.app_ver,
-                item_type: deviceData.item_type,
                 uvc3: encryptedUvc3,
-                lang: this.language
-            });
+                item_type: deviceData.item_type,
+                lang: this.language,
+                format: "json"
+            };
 
-            // 생성된 필수 헤더 적용
-            const headers = this.generateHeaders();
+            const targetUrl = `${this.authHost}/kakao_accounts/login.json`;
 
-            const response = await axios.post(`${this.authHost}/android/account/login.json`, 
-                params.toString(),
+            // [LOGGING] 요청 전송 전 데이터 출력
+            this.logRequest(targetUrl, headers, params);
+
+            const response = await axios.post(targetUrl, 
+                new URLSearchParams(params).toString(),
                 { headers: headers }
             );
 
-            const data = response.data;
+            // [LOGGING] 응답 수신 성공
+            console.log(`[KakaoAuth Success] Response Data: ${JSON.stringify(response.data)}`);
 
-            if (data.status === 0) {
-                console.log(`[KakaoAuth] 로그인 성공: ${data.userId}`);
-                return {
-                    status: 0,
-                    userId: data.userId,
-                    access_token: data.access_token,
-                    deviceUuid: deviceData.device_uuid
+            if (response.data.status === 0) {
+                return { 
+                    status: 0, 
+                    userId: response.data.userId, 
+                    access_token: response.data.access_token, 
+                    deviceUuid: deviceData.device_uuid 
                 };
             } else {
-                console.error(`[KakaoAuth Error] Status: ${data.status}, Msg: ${data.message}`);
-                throw new Error(data.message || "로그인 실패");
+                throw new Error(response.data.message || "로그인 실패");
             }
 
         } catch (error) {
+            console.error("┌───────────────── [KAKAO REQUEST ERROR] ──────────────────┐");
             if (error.response) {
-                console.error("[KakaoAuth Debug] Full Error Data:", JSON.stringify(error.response.data));
-                throw new Error(error.response.data.message || "카카오 서버 접근 거부");
+                console.error(`│ Status: ${error.response.status}`);
+                console.error(`│ Data: ${JSON.stringify(error.response.data)}`);
+            } else {
+                console.error(`│ Message: ${error.message}`);
             }
+            console.error("└────────────────────────────────────────────────────────────┘");
             throw error;
         }
     }
