@@ -28,7 +28,7 @@ class KakaoAuth {
          * 2. 확정된 엔드포인트
          * - POST 스캔 결과 403 Forbidden 응답으로 실존이 확인된 내부 로그인 경로
          */
-        this.authUrl = "/v1/internal/p";
+        this.authUrl = "/v1/internal/talk_login";
 
         // 패킷 디버깅을 위한 인터셉터
         this.client.interceptors.request.use(request => {
