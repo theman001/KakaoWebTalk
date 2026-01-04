@@ -55,13 +55,18 @@ class KakaoAuth {
 
             const response = await this.client.post(this.authUrl, payload);
 
-            // 응답 데이터 처리
-            if (response.data && (response.status === 200 || response.data.access_token)) {
-                console.log(">>> 카카오 인증 성공!");
-                return {
-                    success: true,
-                    session: response.data
-                };
+            // 로그를 상세히 찍어 실제 데이터 확인
+            console.log("----- [서버 응답 데이터] -----");
+            console.log(JSON.stringify(response.data, null, 2));
+            console.log("----------------------------");
+            
+            // 성공 조건 강화
+            if (response.data && response.data.access_token) {
+                console.log(">>> [진짜] 카카오 인증 성공!");
+                return { success: true, session: response.data };
+            } else {
+                console.log(">>> [가짜] 인증 실패 또는 에러 응답");
+                return { success: false, message: response.data.message || "인증 실패" };
             }
         } catch (error) {
             console.error("---------- [Kakao API Debug] ----------");
