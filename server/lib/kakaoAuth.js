@@ -35,24 +35,43 @@ class KakaoAuth {
                 'model_name': this.config.modelName || 'SM-S908N',
                 'permanent': 'true',
                 'forced': 'false',
-                'uvc3': ''
+                // [중요] uvc3가 비어있으면 차단될 확률이 높음. 
+                // 일단 null 대신 매우 짧은 더미값이나 생략을 시도해볼 수 있음.
+                'uvc3': '' 
             };
 
             const params = new URLSearchParams(payload);
+            const headers = {
+                'A': `android/${this.appVersion}/ko`,
+                'C': crypto.randomUUID(),
+                'User-Agent': this.userAgent,
+                'Accept-Language': 'ko',
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                'Host': 'auth.kakao.com'
+            };
+
+            console.log("[Request Headers]:", headers);
+            console.log("[Request Payload]:", payload);
+
             const response = await axios.post('https://auth.kakao.com/android/account/login.json', params.toString(), {
-                headers: {
-                    'A': `android/${this.appVersion}/ko`,
-                    'C': crypto.randomUUID(),
-                    'User-Agent': this.userAgent,
-                    'Accept-Language': 'ko',
-                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                    'Host': 'auth.kakao.com'
-                }
+                headers: headers
             });
 
+            console.log("[Kakao Success]:", response.data);
             return { success: response.data.status === 0, session: response.data, message: response.data.message };
+
         } catch (error) {
-            const msg = error.response ? error.response.data.message : error.message;
+            // [서버 로그 강화]
+            console.error("========== [KAKAO API ERROR] ==========");
+            if (error.response) {
+                console.error("Status:", error.response.status);
+                console.error("Data:", JSON.stringify(error.response.data, null, 2));
+            } else {
+                console.error("Message:", error.message);
+            }
+            console.error("=======================================");
+
+            const msg = error.response ? (error.response.data.message || "올바르지 않은 접근") : error.message;
             return { success: false, message: msg };
         }
     }
