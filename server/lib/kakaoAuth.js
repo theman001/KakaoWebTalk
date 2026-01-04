@@ -9,23 +9,37 @@ class KakaoAuth {
         this.androidId = config.androidId || "7a9b0c1d2e3f4a5b";
         this.userAgent = `KakaoTalk/${this.appVersion} (Android 13; ko_KR; SM-S908N)`;
 
-        // [Layer 1] 네이티브 상수 조합 보정 (Stack Reverse Order)
-        // Ghidra 스택은 거꾸로 쌓일 가능성이 높으므로 순서를 반전시켜 시도합니다.
-        this.nativeKey = Buffer.concat([
-            Buffer.from("c45af149cf51dd3a", 'hex').reverse(), // uStack_68
-            Buffer.from("f4275c2db340fb17", 'hex').reverse(), // uStack_70
-            Buffer.from("c039ea22a95bc647", 'hex').reverse(), // uStack_78
-            Buffer.from("2add44ed36b417d3", 'hex').reverse()  // local_80
-        ]);
-        
-        this.nativeIv = Buffer.concat([
-            Buffer.from("ab706428573c2fdf", 'hex').reverse(), // uStack_28 (새로 발견된 스택값)
-            Buffer.from("aaae49ac5a06cb4", 'hex').reverse()   // uStack_30
-        ]);
+        // 8바이트(64비트) 정수를 리틀 엔디안 버퍼로 변환하는 헬퍼
+        const toBuf = (hex) => {
+            // 16진수 문자열을 16자(8바이트)로 맞춤 (앞에 0 채우기)
+            const padded = hex.padStart(16, '0');
+            return Buffer.from(padded, 'hex').reverse();
+        };
 
-        this.abuseKey = Buffer.from([254, 176, 46, 7, 253, 116, 58, 92, 230, 120, 41, 192, 101, 23, 51, 149]);
-        this.abuseIv = Buffer.from([70, 86, 58, 241, 252, 195, 173, 90, 228, 157, 174, 180, 19, 61, 251, 11]);
-        this.pwdSeed = "jEibeliJAhlEeyoOnjuNg";
+        try {
+            // [Layer 1] Native Constants (Ghidra 분석 기반)
+            // Key: 32바이트 (local_80, uStack_78, uStack_70, uStack_68)
+            this.nativeKey = Buffer.concat([
+                toBuf("2add44ed36b417d3"), // local_80
+                toBuf("c039ea22a95bc647"), // uStack_78
+                toBuf("f4275c2db340fb17"), // uStack_70
+                toBuf("c45af149cf51dd3a")  // uStack_68
+            ]);
+
+            // IV: 16바이트 (local_40, uStack_38)
+            this.nativeIv = Buffer.concat([
+                toBuf("2b5415433a0e4b20"), // local_40
+                toBuf("5109404724345a1a")  // uStack_38
+            ]);
+
+            // [Layer 2] AbuseDetect Constants (Java 추출)
+            this.abuseKey = Buffer.from([254, 176, 46, 7, 253, 116, 58, 92, 230, 120, 41, 192, 101, 23, 51, 149]);
+            this.abuseIv = Buffer.from([70, 86, 58, 241, 252, 195, 173, 90, 228, 157, 174, 180, 19, 61, 251, 11]);
+            
+            this.pwdSeed = "jEibeliJAhlEeyoOnjuNg";
+        } catch (e) {
+            console.error("[Crypto Init Error]:", e);
+        }
     }
 
     encryptPassword(password) {
@@ -38,21 +52,22 @@ class KakaoAuth {
     }
 
     generateUvc3() {
-        // [보정] 카카오 네이티브에서 기대하는 실제 uvc 필드명 (순서 포함)
+        // [구조 보정] 실제 앱은 최소한의 필드만 포함하거나 순서가 고정됨
         const deviceData = {
             "os": "android",
             "model": "SM-S908N",
-            "os_version": "13",
             "android_id": this.androidId,
-            "talk_version": this.appVersion, // app_version 대신 talk_version 사용 가능성
-            "timestamp": Math.floor(Date.now() / 1000)
+            "os_version": "13",
+            "talk_version": this.appVersion
         };
         const jsonStr = JSON.stringify(deviceData);
 
+        // Layer 1 (Native AES-256-CBC)
         const cipher1 = crypto.createCipheriv('aes-256-cbc', this.nativeKey, this.nativeIv);
         let l1 = cipher1.update(jsonStr, 'utf8', 'base64');
         l1 += cipher1.final('base64');
 
+        // Layer 2 (AbuseDetect AES-128-CBC)
         const cipher2 = crypto.createCipheriv('aes-128-cbc', this.abuseKey, this.abuseIv);
         let l2 = cipher2.update(l1, 'utf8', 'base64');
         l2 += cipher2.final('base64');
@@ -63,35 +78,35 @@ class KakaoAuth {
     async login(passedEmail, passedPassword) {
         const url = "https://auth.kakao.com/android/account/login.json";
         const deviceUuid = crypto.createHash('sha1').update("dkljleskljfeisflssljeif " + this.androidId).digest('hex');
-        const uvc3 = this.generateUvc3();
-
-        const headers = {
-            'A': `android/${this.appVersion}/ko`,
-            'C': crypto.randomUUID(),
-            'User-Agent': this.userAgent,
-            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-            'Host': 'auth.kakao.com'
-        };
-
-        const payload = new URLSearchParams({
-            'email': passedEmail || this.email,
-            'password': this.encryptPassword(passedPassword || this.password),
-            'device_uuid': deviceUuid,
-            'device_name': 'SM-S908N',
-            'model_name': 'SM-S908N',
-            'permanent': 'true',
-            'forced': 'false',
-            'uvc3': uvc3
-        });
-
+        
         try {
-            console.log("---- [Final Attempt Start] ----");
+            const uvc3 = this.generateUvc3();
+            const headers = {
+                'A': `android/${this.appVersion}/ko`,
+                'C': crypto.randomUUID(),
+                'User-Agent': this.userAgent,
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                'Host': 'auth.kakao.com'
+            };
+
+            const payload = new URLSearchParams({
+                'email': passedEmail || this.email,
+                'password': this.encryptPassword(passedPassword || this.password),
+                'device_uuid': deviceUuid,
+                'device_name': 'SM-S908N',
+                'model_name': 'SM-S908N',
+                'permanent': 'true',
+                'forced': 'false',
+                'uvc3': uvc3
+            });
+
+            console.log("---- [Login Attempt with Fixed IV] ----");
             const response = await axios.post(url, payload.toString(), { headers });
             console.log("[Server Result]:", response.data);
             return { success: response.data.status === 0, data: response.data };
         } catch (error) {
-            console.error("[Request Failed]:", error.message);
-            return { success: false, message: "통신 실패" };
+            console.error("[Login Process Error]:", error.message);
+            return { success: false, message: "로그인 처리 실패" };
         }
     }
 }
