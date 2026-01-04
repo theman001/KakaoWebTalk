@@ -4,11 +4,10 @@ server:
   mode: "production"
 
 kakao:
-  # 분석된 libtalkand_aes_v11.3.0.so 버전에 맞춰 수정
-  appVersion: "11.3.0" 
+  # 분석된 최신 규격 반영
+  appVersion: "25.11.2"
   protocolVersion: "1.1"
-  # deviceUuid는 실제 기기 고유값(예: 32자리 hex)을 넣는 것이 가장 안전합니다.
-  deviceUuid: "a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2"
+  # deviceUuid: "a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2"
 
 database:
   user: "ADMIN"
