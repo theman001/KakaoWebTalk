@@ -32,20 +32,18 @@ class KakaoAuth {
                 'email': email,
                 'password': this.encryptPassword(password),
                 'device_uuid': this.deviceUuid,
-                'device_name': this.config.deviceName || 'SM-S908N',
-                'model_name': this.config.modelName || 'SM-S908N',
+                'device_name': 'android', // 모델명 대신 단순화
+                'model_name': 'SM-S908N',
                 'permanent': 'true',
-                'forced': 'false',
-                // [중요] uvc3가 비어있으면 차단될 확률이 높음. 
-                // 일단 null 대신 매우 짧은 더미값이나 생략을 시도해볼 수 있음.
-                'uvc3': '0000000000000000000000000000000000000000000000000000000000000000' // 64자 더미
+                'forced': 'false'
+                // 'uvc3'를 아예 전송하지 않음 (Legacy 호환성 테스트)
             };
-
+    
             const params = new URLSearchParams(payload);
             const headers = {
                 'A': `android/${this.appVersion}/ko`,
-                'C': crypto.randomUUID(),
-                'User-Agent': this.userAgent,
+                // 'C' 헤더(UUID)를 제거하거나 형식을 바꿈 (필요 시)
+                'User-Agent': `KakaoTalk ${this.appVersion} An/13 ko`, // UA 형식 변경
                 'Accept-Language': 'ko',
                 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
                 'Host': 'auth.kakao.com'
