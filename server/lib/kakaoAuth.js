@@ -5,7 +5,8 @@ const kakaoCrypto = require('../security/kakaoCrypto');
 class KakaoAuth {
     constructor(config) {
         this.config = config;
-        // URL 문자열에 공백이나 제어문자가 포함되지 않도록 trim() 처리
+        // ✅ 분석 결과: SubDeviceLoginService.BASE_URL = "{SERVER_TRANSFER_URL}/android/account/"
+        // 실제 도메인은 C90388j.m346863l()로 동적으로 결정되지만, 일반적으로 auth.kakao.com 사용
         this.authHost = "https://auth.kakao.com".trim();
         this.appVersion = "25.11.2";
         this.androidVersion = "14";
@@ -146,7 +147,9 @@ class KakaoAuth {
                 format: "json"
             };
 
-            // URL 생성 시 발생할 수 있는 잠재적 오류 방지
+            // ✅ 분석 결과: SubDeviceLoginService.m194179c() → @POST("login.json")
+            // BASE_URL = "{SERVER_TRANSFER_URL}/android/account/"
+            // 최종 URL: https://auth.kakao.com/android/account/login.json
             const targetUrl = `${this.authHost}/android/account/login.json`.replace(/\s/g, '');
 
             // 상세 요청 로그 출력
@@ -162,14 +165,49 @@ class KakaoAuth {
                 }
             );
 
-            console.log(`[KakaoAuth Success] HTTP ${response.status} - User ID: ${response.data.userId || 'N/A'}`);
+            // ✅ 분석 결과: SubDeviceLoginResponse 응답 구조
+            // 필드: server_time, userId, profileId, countryIso, accountId, sessionKey,
+            //       access_token, refresh_token, token_type, loginFailedAccountToken,
+            //       autoLoginAccountId, displayAccountId, title, description, button,
+            //       uri, anotherEmailVerificationUri, mainDeviceAgentName, mainDeviceAppVersion
+            // ⚠️ 주의: SubDeviceLoginResponse에는 'status' 필드가 없습니다!
+            // 에러 응답은 다른 형식일 수 있으므로, userId나 access_token 존재 여부로 성공 판단
             
-            if (response.data.status !== 0) {
-                console.warn(`[KakaoAuth Warning] Message: ${response.data.message || 'Unknown'}`);
-                console.warn(`[Full Response]: ${JSON.stringify(response.data)}`);
+            const responseData = response.data;
+            console.log(`[KakaoAuth Success] HTTP ${response.status} - User ID: ${responseData.userId || 'N/A'}`);
+            
+            // 성공 여부 판단: userId와 access_token이 있으면 성공
+            if (!responseData.userId || !responseData.access_token) {
+                // 실패 응답 처리
+                const errorMessage = responseData.message || 
+                                    responseData.title || 
+                                    responseData.description || 
+                                    "로그인 실패";
+                
+                console.warn(`[KakaoAuth Warning] Message: ${errorMessage}`);
+                console.warn(`[Full Response]: ${JSON.stringify(responseData)}`);
+                
+                // status 필드가 있는 경우 (다른 에러 응답 형식)
+                if (responseData.status !== undefined && responseData.status !== 0) {
+                    // status: -404는 암호화/무결성 검증 실패를 의미할 수 있음
+                    if (responseData.status === -404) {
+                        console.error(`[KakaoAuth Error] Status -404: 암호화된 데이터 복호화 실패 또는 필수 보안 필드 무결성 깨짐`);
+                        console.error(`[KakaoAuth Error] 가능한 원인:`);
+                        console.error(`  - Password 암호화 방식 불일치`);
+                        console.error(`  - UVC3 암호화/검증 실패`);
+                        console.error(`  - Request Body 파라미터 누락 또는 형식 오류`);
+                    }
+                }
+                
+                // 에러 응답에도 status 필드를 추가하여 기존 코드와 호환성 유지
+                responseData.status = responseData.status || -1;
+                responseData.message = errorMessage;
+            } else {
+                // 성공 응답에 status 필드 추가 (기존 코드와 호환성 유지)
+                responseData.status = 0;
             }
             
-            return response.data;
+            return responseData;
 
         } catch (error) {
             this.handleError(error);

@@ -82,7 +82,10 @@ class KakaoGateway {
                     const auth = new KakaoAuth(this.config);
                     const loginResult = await auth.login(data.email, data.password);
 
-                    if (loginResult.status !== 0) {
+                    // ✅ 분석 결과: SubDeviceLoginResponse에는 'status' 필드가 없지만,
+                    // kakaoAuth.js에서 호환성을 위해 status 필드를 추가합니다.
+                    // userId와 access_token 존재 여부로도 성공 여부를 판단할 수 있습니다.
+                    if (loginResult.status !== 0 || !loginResult.userId || !loginResult.access_token) {
                         throw new Error(loginResult.message || "카카오 계정 정보가 일치하지 않습니다.");
                     }
 
@@ -90,11 +93,18 @@ class KakaoGateway {
                     const browserSessionId = crypto.randomBytes(20).toString("hex");
 
                     // DB가 연결된 상태라면 Oracle에 세션 영구 저장
+                    // ✅ 분석 결과: SubDeviceLoginResponse 필드 사용
+                    // - userId: Long
+                    // - access_token: String
+                    // - sessionKey: String (추가로 저장 가능)
+                    // - refresh_token: String (추가로 저장 가능)
                     if (this.sm) {
                         await this.sm.saveSession(browserSessionId, {
                             userId: loginResult.userId,
                             authToken: loginResult.access_token,
-                            deviceUuid: loginResult.deviceUuid
+                            refreshToken: loginResult.refresh_token || null,
+                            sessionKey: loginResult.sessionKey || null,
+                            deviceUuid: loginResult.deviceUuid || null
                         });
                     }
 

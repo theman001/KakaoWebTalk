@@ -7,11 +7,18 @@ const KakaoCrypto = {
     /**
      * Password 암호화 (C70496a.m283826b() 구현)
      * 
-     * ⚠️ 참고: 실제 카카오톡 APK 코드 (SubDeviceLoginParams.m194994D)에서는 
-     * m283825a (복호화 메서드)를 사용하지만, 논리적으로는 암호화가 필요하므로 
-     * m283826b (암호화 메서드) 구현을 사용합니다.
+     * ⚠️ 중요: 실제 카카오톡 APK 코드 (SubDeviceLoginParams.m194994D)에서는 
+     * m283825a (복호화 메서드)를 사용하지만, 이는 논리적으로 말이 안 됩니다.
      * 
-     * 실제 로그인 테스트를 통해 검증이 필요합니다.
+     * 분석 결과:
+     * - m283825a(): cipher.init(2, ...) → DECRYPT_MODE (복호화)
+     * - m283826b(): cipher.init(1, ...) → ENCRYPT_MODE (암호화)
+     * 
+     * 현재 구현은 논리적으로 올바른 m283826b() (암호화 메서드)를 사용합니다.
+     * 만약 status: -404 에러가 지속된다면, 실제 APK의 이상한 동작을 따라야 할 수도 있습니다.
+     * 
+     * @param {string} password - 평문 비밀번호
+     * @returns {string|null} - Base64 인코딩된 암호문, 실패 시 null
      */
     encryptPassword(password) {
         try {
@@ -38,7 +45,7 @@ const KakaoCrypto = {
             // 5. 최종 결과 확인 및 Base64 변환
             const result = encrypted.toString('base64');
             
-            // 이 로그에서 RawBytes가 32가 찍혀야 합니다.
+            // 디버깅 로그
             console.log(`[CRYPTO_STRICT] RawBytes: ${encrypted.length}, ResultLen: ${result.length}`);
             
             return result;
@@ -48,19 +55,85 @@ const KakaoCrypto = {
         }
     },
 
-    // createUvc3 및 generateDeviceUuid는 이전과 동일
+    /**
+     * Password 암호화 (대안: 실제 APK 코드 따라하기)
+     * 
+     * ⚠️ 실험적 구현: 실제 APK가 m283825a() (복호화 메서드)를 사용하는 것을 따라한 버전
+     * 이는 논리적으로 말이 안 되지만, 실제 APK 코드이므로 테스트용으로 제공합니다.
+     * 
+     * @param {string} password - 평문 비밀번호
+     * @returns {string|null} - Base64 인코딩된 암호문, 실패 시 null
+     */
+    encryptPasswordAlternative(password) {
+        try {
+            // 실제 APK 코드는 복호화 메서드를 사용하므로, 
+            // 평문을 Base64로 인코딩한 후 복호화 모드로 처리하려고 시도합니다.
+            // 하지만 이것은 논리적으로 실패할 것입니다.
+            
+            const keyString = this.PW_ENC_KEY;
+            const iv = Buffer.from(keyString.substring(0, 16), 'utf8');
+            const keyBuffer = Buffer.alloc(32, 0);
+            const keyData = Buffer.from(keyString, 'utf8');
+            keyData.copy(keyBuffer, 0);
+            
+            // 복호화 모드로 설정 (실제 APK 코드와 동일)
+            const decipher = crypto.createDecipheriv('aes-256-cbc', keyBuffer, iv);
+            decipher.setAutoPadding(true);
+            
+            // 평문을 Base64로 인코딩 (실제 APK 코드의 C15723c(str).m51382c()와 유사)
+            const base64Password = Buffer.from(password, 'utf8').toString('base64');
+            
+            // 복호화 시도 (이것은 실패할 것입니다)
+            let decrypted = decipher.update(base64Password, 'base64');
+            decrypted = Buffer.concat([decrypted, decipher.final()]);
+            
+            return decrypted.toString('base64');
+        } catch (error) {
+            // 예상대로 실패합니다
+            console.error("Password Encryption Alternative Error (Expected):", error.message);
+            return null;
+        }
+    },
+
+    /**
+     * UVC3 생성 (2단계 암호화)
+     * 
+     * Step 1: TalkHello (AES-256-CBC) 암호화
+     * Step 2: AES-128-CBC 재암호화
+     * 
+     * @param {Object} hwInfo - 하드웨어 정보 객체
+     * @returns {string|null} - Base64 인코딩된 UVC3 값, 실패 시 null
+     */
     createUvc3(hwInfo) {
         try {
+            // Step 1: TalkHello Native 암호화
             const step1Base64 = talkHello.encrypt(JSON.stringify(hwInfo));
+            
+            // Step 2: Java Layer 재암호화 (AES-128-CBC)
             const step2Key = Buffer.from([0xFE, 0xB0, 0x2E, 0x07, 0xFD, 0x74, 0x3A, 0x5C, 0xE6, 0x78, 0x29, 0xC0, 0x65, 0x17, 0x33, 0x95]);
             const step2Iv = Buffer.from([0x46, 0x56, 0x3A, 0xF1, 0xFC, 0xC3, 0xAD, 0x5A, 0xE4, 0x9D, 0xAE, 0xB4, 0x13, 0x3D, 0xFB, 0x0B]);
             const cipher = crypto.createCipheriv('aes-128-cbc', step2Key, step2Iv);
+            cipher.setAutoPadding(true);
+            
             let encrypted = cipher.update(Buffer.from(step1Base64, 'base64'));
             encrypted = Buffer.concat([encrypted, cipher.final()]);
+            
             return encrypted.toString('base64');
-        } catch (e) { return null; }
+        } catch (e) {
+            console.error("[UVC3 Creation Error]:", e.message);
+            return null;
+        }
     },
 
+    /**
+     * Device UUID 생성
+     * 
+     * 실제 카카오톡 APK 코드 (C66516V.m270999f)와 일치하도록 구현
+     * Salt 끝에 공백이 포함되어 있음
+     * 
+     * @param {string} model - 기기 모델명
+     * @returns {string} - SHA-1 해시값 (40자 hex 문자열)
+     */
     generateDeviceUuid(model) {
         // ✅ 수정: 실제 카카오톡 APK 코드 (C66516V.m270999f)와 일치하도록 끝에 공백 추가
         const salt = "dkljleskljfeisflssljeif ";
