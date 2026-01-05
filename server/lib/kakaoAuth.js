@@ -21,7 +21,17 @@ class KakaoAuth {
         try {
             // 1. 보안 식별자 및 암호화 데이터 생성
             const deviceUuid = this.config.kakao.deviceUuid || kakaoCrypto.generateDeviceUuid(this.model);
-            const encryptedPassword = kakaoCrypto.encryptPassword(password);
+            
+            // ⚠️ 실험적 테스트: 복호화 모드 시뮬레이션 (APK 코드의 .a() 메서드)
+            // 환경 변수로 제어 가능: USE_DECRYPT_MODE=true
+            const useDecryptMode = process.env.USE_DECRYPT_MODE === 'true';
+            const encryptedPassword = useDecryptMode 
+                ? kakaoCrypto.encryptPasswordAlternative(password)
+                : kakaoCrypto.encryptPassword(password);
+            
+            if (useDecryptMode) {
+                console.log("[EXPERIMENTAL] Using decrypt mode simulation (APK .a() method)");
+            }
             
             // 2. uvc3 내부용 하드웨어 정보 (정밀화된 실제 안드로이드 규격)
             const hwInfo = {
