@@ -5,20 +5,24 @@ const KakaoCrypto = {
     PW_ENC_KEY: "jEibeliJAhlEeyoOnjuNg",
 
     /**
-     * Password 암호화 (C70496a.m283826b() 구현)
+     * Password 암호화 (C33858a.b() 구현 - 논리적으로 올바른 암호화 메서드)
      * 
      * ⚠️ 중요: 실제 카카오톡 APK 코드 (SubDeviceLoginParams.m194994D)에서는 
-     * m283825a (복호화 메서드)를 사용하지만, 이는 논리적으로 말이 안 됩니다.
+     * C33858a.a() (복호화 메서드)를 사용하지만, 이는 논리적으로 말이 안 됩니다.
      * 
-     * 분석 결과:
-     * - m283825a(): cipher.init(2, ...) → DECRYPT_MODE (복호화)
-     * - m283826b(): cipher.init(1, ...) → ENCRYPT_MODE (암호화)
+     * 분석 결과 (app/src/main/java/kZ/C33858a.java):
+     * - .a() 메서드: cipher.init(2, ...) → DECRYPT_MODE (복호화)
+     *   - 입력: Base64URL 디코딩된 바이트 배열
+     *   - 출력: 복호화된 평문 문자열
+     * - .b() 메서드: cipher.init(1, ...) → ENCRYPT_MODE (암호화)
+     *   - 입력: 평문 문자열
+     *   - 출력: Base64URL 인코딩된 암호문
      * 
-     * 현재 구현은 논리적으로 올바른 m283826b() (암호화 메서드)를 사용합니다.
-     * 만약 status: -404 에러가 지속된다면, 실제 APK의 이상한 동작을 따라야 할 수도 있습니다.
+     * 현재 구현은 논리적으로 올바른 .b() (암호화 메서드)를 사용합니다.
+     * APK 코드는 Nr0.c.d() (Base64URL 인코딩)를 사용하므로, Base64URL 변환을 추가했습니다.
      * 
      * @param {string} password - 평문 비밀번호
-     * @returns {string|null} - Base64 인코딩된 암호문, 실패 시 null
+     * @returns {string|null} - Base64URL 인코딩된 암호문, 실패 시 null
      */
     encryptPassword(password) {
         try {
@@ -42,13 +46,20 @@ const KakaoCrypto = {
             
             const encrypted = Buffer.concat([part1, part2]);
             
-            // 5. 최종 결과 확인 및 Base64 변환
-            const result = encrypted.toString('base64');
+            // 5. Base64 인코딩
+            const base64 = encrypted.toString('base64');
+            
+            // 6. ✅ Base64URL 변환 (APK 코드의 Nr0.c.d()와 동일)
+            // Base64URL: + → -, / → _, 패딩 = 제거
+            const base64url = base64
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=/g, '');
             
             // 디버깅 로그
-            console.log(`[CRYPTO_STRICT] RawBytes: ${encrypted.length}, ResultLen: ${result.length}`);
+            console.log(`[CRYPTO_STRICT] RawBytes: ${encrypted.length}, Base64Len: ${base64.length}, Base64URLLen: ${base64url.length}`);
             
-            return result;
+            return base64url;
         } catch (error) {
             console.error("Password Encryption Error:", error);
             return null;
@@ -58,16 +69,23 @@ const KakaoCrypto = {
     /**
      * Password 암호화 (대안: 실제 APK 코드 따라하기)
      * 
-     * ⚠️ 실험적 구현: 실제 APK가 m283825a() (복호화 메서드)를 사용하는 것을 따라한 버전
+     * ⚠️ 실험적 구현: 실제 APK가 C33858a.a() (복호화 메서드)를 사용하는 것을 따라한 버전
      * 이는 논리적으로 말이 안 되지만, 실제 APK 코드이므로 테스트용으로 제공합니다.
      * 
+     * 분석 결과 (app/src/main/java/kZ/C33858a.java:52-58):
+     * - .a() 메서드는 복호화 모드 (DECRYPT_MODE)를 사용합니다.
+     * - 입력: new Nr0.c(str).c() → Base64URL 디코딩된 바이트 배열
+     * - 출력: 복호화된 평문 문자열
+     * 
+     * 이 메서드는 논리적으로 실패할 것으로 예상되지만, 실제 APK 동작을 시뮬레이션합니다.
+     * 
      * @param {string} password - 평문 비밀번호
-     * @returns {string|null} - Base64 인코딩된 암호문, 실패 시 null
+     * @returns {string|null} - Base64URL 인코딩된 결과, 실패 시 null
      */
     encryptPasswordAlternative(password) {
         try {
             // 실제 APK 코드는 복호화 메서드를 사용하므로, 
-            // 평문을 Base64로 인코딩한 후 복호화 모드로 처리하려고 시도합니다.
+            // 평문을 Base64URL로 인코딩한 후 복호화 모드로 처리하려고 시도합니다.
             // 하지만 이것은 논리적으로 실패할 것입니다.
             
             const keyString = this.PW_ENC_KEY;
@@ -80,14 +98,32 @@ const KakaoCrypto = {
             const decipher = crypto.createDecipheriv('aes-256-cbc', keyBuffer, iv);
             decipher.setAutoPadding(true);
             
-            // 평문을 Base64로 인코딩 (실제 APK 코드의 C15723c(str).m51382c()와 유사)
+            // 평문을 Base64URL로 인코딩 (실제 APK 코드의 Nr0.c.d()와 유사)
             const base64Password = Buffer.from(password, 'utf8').toString('base64');
+            const base64urlPassword = base64Password
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=/g, '');
+            
+            // Base64URL 디코딩 (Nr0.c.c()와 유사)
+            const base64Decoded = base64urlPassword
+                .replace(/-/g, '+')
+                .replace(/_/g, '/');
+            const padding = (4 - (base64Decoded.length % 4)) % 4;
+            const base64Padded = base64Decoded + '='.repeat(padding);
+            const decodedBuffer = Buffer.from(base64Padded, 'base64');
             
             // 복호화 시도 (이것은 실패할 것입니다)
-            let decrypted = decipher.update(base64Password, 'base64');
+            let decrypted = decipher.update(decodedBuffer);
             decrypted = Buffer.concat([decrypted, decipher.final()]);
             
-            return decrypted.toString('base64');
+            // Base64URL 인코딩
+            const result = decrypted.toString('base64')
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=/g, '');
+            
+            return result;
         } catch (error) {
             // 예상대로 실패합니다
             console.error("Password Encryption Alternative Error (Expected):", error.message);
