@@ -129,21 +129,33 @@ class KakaoAuth {
             };
 
             // 4. Request Body 파라미터 구성
+            // ✅ 분석 결과: SubDeviceLoginParams.m194994D() 파라미터 순서
+            // 1. email, 2. password, 3. device_uuid, 4. device_name,
+            // 5. auto_login, 6. autowithlock, 7. forced, 8. permanent,
+            // 9. passcode, 10. model_name, 11. another_email_verification_uri
+            // ⚠️ 주의: forced와 permanent는 Boolean.valueOf()로 변환됨 (Boolean 타입)
+            // 하지만 URLSearchParams는 문자열로 변환하므로 "true"/"false" 문자열로 전송됨
             const params = {
                 email: email,
                 password: encryptedPassword,
                 device_uuid: deviceUuid,
+                device_name: "Galaxy S21",
+                // auto_login: null,        // nullable, 생략 가능
+                // autowithlock: null,      // nullable, 생략 가능
+                forced: true,               // ✅ Boolean 타입 (URLSearchParams가 "true"로 변환)
+                permanent: true,            // ✅ Boolean 타입 (URLSearchParams가 "true"로 변환)
+                // passcode: null,          // nullable, 생략 가능
+                model_name: this.model,
+                // another_email_verification_uri: null,  // nullable, 생략 가능
+                
+                // HTTP 요청용 추가 파라미터 (SubDeviceLoginParams에는 없지만 HTTP 요청에 필요)
                 os: "android",
                 model: this.model,
-                model_name: this.model, 
                 v: this.androidVersion,
                 app_ver: this.appVersion,
                 uvc3: uvc3,
                 item_type: "J",
                 lang: this.language,
-                device_name: "Galaxy S21",
-                forced: "true",
-                permanent: "true",       
                 format: "json"
             };
 
