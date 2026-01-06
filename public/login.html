@@ -110,17 +110,18 @@
 
     <script>
         console.log("login.html inline script executing...");
-        fetch('/debug/ping').catch(e => console.error("Ping failed", e));
 
-        // window.onload 확인
         window.addEventListener('load', () => {
             console.log("Window loaded");
             const btn = document.getElementById('loginBtn');
             if (btn) console.log("Button found");
             else console.error("Button NOT found");
         });
-        <!-- 로컬 Socket.io 라이브러리 사용 (가장 확실한 방법) -->
-        <script src="socket.io.min.js"></script>
+    </script>
+
+    <!-- socket.io -->
+    <script src="/socket.io.min.js"></script>
+
     <script>
         if (typeof io !== 'undefined') {
             console.log("Socket.io loaded from local file.");
@@ -128,7 +129,10 @@
             alert("치명적 오류: socket.io.min.js 파일을 찾을 수 없습니다. 서버 관리자 확인 필요.");
         }
     </script>
-    <script src="app.js?v=really_final"></script>
+
+    <!-- 메인 앱 스크립트 -->
+    <script src="/app.js?v=really_final"></script>
+
 </body>
 
 </html>
