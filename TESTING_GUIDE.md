@@ -66,3 +66,5 @@ node server.js
 
 로그에서 Password 값을 확인하고, 실제 APK 값과 비교하세요.
 
+
+
