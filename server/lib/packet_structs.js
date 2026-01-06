@@ -30,17 +30,17 @@ const LocoPacketStructs = {
     LoginList: {
         method: 'LOGINLIST',
         types: {
-            appVer: 'string',
-            prtVer: 'string', // Protocol Version
-            os: 'string',
-            lang: 'string',
-            oauthToken: 'string', // if using OAuth
-            encData: 'string', // Encrypted password/auth data
-            uuid: 'string',
-            // ...
+            appVer: 'string', // '11.3.0'
+            prtVer: 'string', // '1'
+            os: 'string', // 'android'
+            lang: 'string', // 'ko'
+            oauthToken: 'string', // Access Token
+            uuid: 'string', // Device UUID
+            encData: 'string', // Session Key or Encrypted Data
+            bg: 'boolean' // Background mode
         }
     },
-    
+
     /**
      * BUYCS (Buy Call Server)
      * Request to get a chat server address

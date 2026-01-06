@@ -8,17 +8,17 @@ const KakaoAuth = require("./kakaoAuth");
 class KakaoGateway {
     constructor(httpServer, db, config) {
         // Socket.io 초기화
-        this.io = new Server(httpServer, { 
+        this.io = new Server(httpServer, {
             cors: { origin: "*" },
             allowEIO3: true // 호환성 유지
         });
-        
+
         this.db = db;
         this.config = config;
 
         // DB 연결 상태에 따른 세션 매니저 초기화
         this.sm = db ? new SessionManager(db) : null;
-        
+
         // 실시간 소켓 연결 관리 (socket.id -> LocoClient instance)
         this.activeConnections = new Map();
 
@@ -62,10 +62,10 @@ class KakaoGateway {
                         USER_ID: session.USER_ID
                     });
 
-                    socket.emit("auth:success", { 
-                        sessionId, 
+                    socket.emit("auth:success", {
+                        sessionId,
                         userId: session.USER_ID,
-                        restored: true 
+                        restored: true
                     });
                 } catch (err) {
                     console.error("[Restore Error]:", err.message);
@@ -165,12 +165,12 @@ class KakaoGateway {
         const loco = new LocoClient(this.config.kakao);
         try {
             await loco.connect();
-            
+
             // 로그인 리스트 요청 (카카오톡 세션 활성화)
-            loco.sendPacket("LOGINLIST", {
+            loco.sendLoginList({
                 authToken: session.AUTH_TOKEN,
                 deviceUuid: session.DEVICE_UUID,
-                revision: 0
+                sessionKey: session.SESSION_KEY // DB에 저장된 경우
             });
 
             // 카카오 서버로부터 오는 실시간 패킷 처리

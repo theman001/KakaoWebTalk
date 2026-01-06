@@ -109,6 +109,29 @@ class LocoClient extends EventEmitter {
     }
 
     /**
+     * Send LOGINLIST Packet
+     * Authenticates the session using the access token.
+     */
+    async sendLoginList(authData) {
+        console.log('[LOCO] Sending LOGINLIST...');
+
+        // LOGINLIST 패킷 구조
+        const loginListBody = {
+            "appVer": this.deviceInfo.appVer,
+            "prtVer": "1",
+            "os": "android",
+            "lang": "ko",
+            "oauthToken": authData.authToken,
+            "uuid": authData.deviceUuid,
+            "encData": authData.sessionKey || "", // 세션키가 있다면 사용
+            // 필요한 경우 추가 필드
+            "bg": false
+        };
+
+        this.sendPacket("LOGINLIST", loginListBody);
+    }
+
+    /**
      * 카카오 규격: 22바이트 헤더 + BSON 바디
      */
     sendPacket(method, body) {
