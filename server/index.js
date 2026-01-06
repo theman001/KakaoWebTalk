@@ -29,6 +29,12 @@ try {
 // 3. 미들웨어 설정
 app.use(express.json());
 
+// 디버깅: 모든 요청 로깅
+app.use((req, res, next) => {
+    console.log(`[HTTP Request] ${req.method} ${req.path}`);
+    next();
+});
+
 // 쿠키 파서 미들웨어 (간단 구현)
 app.use((req, res, next) => {
     const cookieHeader = req.headers.cookie;
