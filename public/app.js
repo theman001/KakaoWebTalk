@@ -1,21 +1,41 @@
 // public/app.js
 const socket = io();
 
-document.getElementById('loginBtn').addEventListener('click', () => {
-    const email = document.getElementById('email').value;
-    const password = document.getElementById('password').value;
+// DOM이 완전히 로드된 후 이벤트 리스너 등록
+document.addEventListener('DOMContentLoaded', () => {
+    const loginBtn = document.getElementById('loginBtn');
+    const emailInput = document.getElementById('email');
+    const passwordInput = document.getElementById('password');
 
-    if (!email || !password) {
-        alert("이메일과 비밀번호를 모두 입력해주세요.");
-        return;
+    function tryLogin() {
+        const email = emailInput.value;
+        const password = passwordInput.value;
+
+        if (!email || !password) {
+            alert("이메일과 비밀번호를 모두 입력해주세요.");
+            return;
+        }
+
+        console.log("[Socket] 로그인 요청 전송...");
+        // 규격 변경: login_request -> auth:login
+        socket.emit('auth:login', {
+            email: email,
+            password: password
+        });
     }
 
-    console.log("[Socket] 로그인 요청 전송...");
-    // 규격 변경: login_request -> auth:login
-    socket.emit('auth:login', {
-        email: email,
-        password: password
-    });
+    if (loginBtn) {
+        loginBtn.addEventListener('click', tryLogin);
+    }
+
+    // 엔터키 지원
+    if (passwordInput) {
+        passwordInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                tryLogin();
+            }
+        });
+    }
 });
 
 // 규격 변경: login_response -> auth:success
@@ -32,5 +52,14 @@ socket.on('auth:success', (data) => {
 });
 
 socket.on('auth:fail', (data) => {
+    console.error("로그인 실패:", data);
     alert("로그인 실패: " + data.message);
+});
+
+socket.on('connect', () => {
+    console.log("[Socket] 서버에 연결되었습니다.");
+});
+
+socket.on('disconnect', () => {
+    console.log("[Socket] 서버와 연결이 끊어졌습니다.");
 });
