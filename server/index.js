@@ -60,6 +60,7 @@ const sessionMiddleware = (req, res, next) => {
         req.path.startsWith('/css') ||
         req.path.startsWith('/js') ||
         req.path.startsWith('/images')) {
+        console.log(`[Middleware] Whitelist Passed: ${req.path}`);
         return next();
     }
 

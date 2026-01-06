@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -27,7 +28,7 @@
             background: white;
             padding: 50px 30px;
             border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
             width: 100%;
             max-width: 340px;
             text-align: center;
@@ -79,20 +80,27 @@
 
         /* 반응형: 모바일에서는 카드 형태 제거 */
         @media (max-width: 480px) {
-            body { background-color: white; }
-            .login-card { box-shadow: none; border: none; }
+            body {
+                background-color: white;
+            }
+
+            .login-card {
+                box-shadow: none;
+                border: none;
+            }
         }
     </style>
 </head>
+
 <body>
 
     <div class="login-card">
         <div class="logo">KakaoWebTalk</div>
-        
+
         <div class="input-group">
             <input type="text" id="email" placeholder="카카오계정 (이메일)" required>
         </div>
-        
+
         <div class="input-group">
             <input type="password" id="password" placeholder="비밀번호" required>
         </div>
@@ -100,8 +108,20 @@
         <button type="button" id="loginBtn">로그인</button>
     </div>
 
-    <script>console.log("login.html loaded");</script>
-    <script src="/socket.io/socket.io.js?v=new"></script>
-    <script src="app.js?v=new"></script>
+    <script>
+        console.log("login.html inline script executing...");
+        fetch('/debug/ping').catch(e => console.error("Ping failed", e));
+
+        // window.onload 확인
+        window.addEventListener('load', () => {
+            console.log("Window loaded");
+            const btn = document.getElementById('loginBtn');
+            if (btn) console.log("Button found");
+            else console.error("Button NOT found");
+        });
+    </script>
+    <script src="/socket.io/socket.io.js?v=debug"></script>
+    <script src="app.js?v=debug"></script>
 </body>
+
 </html>
