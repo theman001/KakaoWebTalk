@@ -4,7 +4,7 @@
  * 일반 암호화 모드 vs 복호화 모드 시뮬레이션 비교
  */
 
-const kakaoCrypto = require('./server/security/kakaoCrypto');
+const kakaoCrypto = require('../../KakaoWebTalk/server/security/kakaoCrypto');
 
 const testPassword = 'xodnr123';
 

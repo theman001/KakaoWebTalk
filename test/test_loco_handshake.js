@@ -5,7 +5,7 @@
  * Verifies if the UVC3 token is generated and the packet is sent without errors.
  */
 
-const LocoClient = require('./server/lib/locoClient');
+const LocoClient = require('../../KakaoWebTalk/server/lib/locoClient');
 
 async function testHandshake() {
     console.log('='.repeat(60));
