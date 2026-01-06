@@ -119,17 +119,16 @@
             if (btn) console.log("Button found");
             else console.error("Button NOT found");
         });
-        <!-- 네트워크 격리 환경 대비: 로컬 socket.io 우선 사용 -->
-        <script src="/js/socket.io.js"></script>
+        <!-- 로컬 Socket.io 라이브러리 사용 (가장 확실한 방법) -->
+        <script src="socket.io.min.js"></script>
     <script>
         if (typeof io !== 'undefined') {
-            console.log("Socket.io (Local) loaded successfully.");
+            console.log("Socket.io loaded from local file.");
         } else {
-            console.error("FATAL: Socket.io library not loaded.");
-        alert("서버 오류: 소켓 라이브러리를 찾을 수 없습니다.");
+            alert("치명적 오류: socket.io.min.js 파일을 찾을 수 없습니다. 서버 관리자 확인 필요.");
         }
     </script>
-    <script src="app.js?v=final_fix"></script>
+    <script src="app.js?v=really_final"></script>
 </body>
 
 </html>
