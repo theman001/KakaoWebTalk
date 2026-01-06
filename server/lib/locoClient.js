@@ -25,7 +25,7 @@ class LocoClient extends EventEmitter {
             mccmnc: this.config.mccmnc || "45005",
             osVersion: this.config.osVersion || "12",
             countryIso: this.config.countryIso || "KR",
-            appVer: this.config.appVer || "11.3.0"
+            appVer: this.config.appVer || "25.11.2"
         };
     }
 
@@ -69,29 +69,10 @@ class LocoClient extends EventEmitter {
     /**
      * Send CHECKIN Packet
      * Registers the client and retrieves the chat server list.
-     * Uses UVC3 token for client integrity.
+     * UVC3 is NOT sent in LOCO body based on analysis.
      */
     async sendCheckin() {
-        console.log('[LOCO] Generating UVC3 Token...');
-
-        // 1. 하드웨어 정보 수집 (Mock)
-        // 실제 앱 분석 결과에 맞춘 포맷
-        const hwInfo = {
-            "model": this.deviceInfo.model,
-            "os": "android",
-            "lang": "ko",
-            "country": this.deviceInfo.countryIso,
-            "mccmnc": this.deviceInfo.mccmnc
-        };
-
-        // 2. UVC3 토큰 생성 (Native Mock + AES-128)
-        const uvc3 = KakaoCrypto.createUvc3(hwInfo);
-
-        if (!uvc3) {
-            throw new Error("Failed to generate UVC3 token (Native Mock failed)");
-        }
-
-        console.log(`[LOCO] UVC3 Token Generated: ${uvc3.substring(0, 20)}...`);
+        console.log('[LOCO] Checkin...');
 
         // 3. CHECKIN 패킷 본문 구성
         const checkinBody = {
@@ -102,7 +83,8 @@ class LocoClient extends EventEmitter {
             "mccmnc": this.deviceInfo.mccmnc,
             "lang": "ko",
             "countryIso": this.deviceInfo.countryIso,
-            "uvc3": uvc3
+            "ntype": 0
+            // uvc3 removed as it is used in HTTP Header (Device-Info)
         };
 
         this.sendPacket("CHECKIN", checkinBody);
