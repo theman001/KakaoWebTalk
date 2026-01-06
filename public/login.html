@@ -119,10 +119,17 @@
             if (btn) console.log("Button found");
             else console.error("Button NOT found");
         });
+        <!-- Socket.io CDN 사용 (로컬 경로 문제 회피) -->
+        <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <script>
+            if (typeof io !== 'undefined') {
+                console.log("Socket.io library loaded successfully via CDN");
+        } else {
+                console.error("Socket.io library FAILED to load");
+            alert("Socket 라이브러리 로드 실패! 인터넷 연결이나 CDN을 확인하세요.");
+        }
     </script>
-    <!-- Socket.io CDN 사용 (로컬 경로 문제 회피) -->
-    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
-    <script src="app.js?v=debug"></script>
+    <script src="app.js?v=9999"></script>
 </body>
 
 </html>
