@@ -27,7 +27,7 @@ try {
 }
 
 // 3. 미들웨어 설정
-app.use(express.json());
+// app.use(express.json());
 
 // 쿠키 파서 미들웨어 (간단 구현)
 app.use((req, res, next) => {
