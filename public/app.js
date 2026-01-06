@@ -1,4 +1,5 @@
 // public/app.js
+alert("app.js loaded!"); // Debugging: 스크립트 로드 확인
 const socket = io();
 
 // DOM이 완전히 로드된 후 이벤트 리스너 등록
