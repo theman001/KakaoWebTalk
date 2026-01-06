@@ -46,9 +46,11 @@ app.use((req, res, next) => {
 // 정적 파일(.js, .css, .png 등)과 /login, /socket.io는 제외하고 검증
 const sessionMiddleware = (req, res, next) => {
     // 1. 허용된 경로(Whitelist)
-    const whitelist = ['/login', '/favicon.ico'];
+    const whitelist = ['/login', '/app.js', '/favicon.ico'];
     if (whitelist.includes(req.path) ||
         req.path.startsWith('/socket.io') ||
+        req.path.endsWith('.js') ||
+        req.path.endsWith('.css') ||
         req.path.startsWith('/css') ||
         req.path.startsWith('/js') ||
         req.path.startsWith('/images')) {
