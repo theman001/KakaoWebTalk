@@ -141,6 +141,7 @@ class LocoClient extends EventEmitter {
             this.socket.write(packet);
 
             console.log(`[LOCO] Sent: ${method} (ID: ${this.packetId - 1})`);
+            console.log(`       Body: ${JSON.stringify(body)}`);
         } catch (err) {
             console.error(`[LOCO] Send Error: ${err.message}`);
         }
